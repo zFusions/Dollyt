@@ -1,14 +1,13 @@
 use crate::error::{DollytError, Result};
+use crate::format;
+use crate::process;
 use serde::Serialize;
 use serde_json::Value;
 use std::path::PathBuf;
-use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+use std::process::Child;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,43 +25,8 @@ pub struct DownloadResult {
     pub elapsed_ms: u64,
 }
 
-pub fn pick_muxed_format(formats: &[Value]) -> Option<(String, String)> {
-    for format in formats {
-        if format.get("format_id").and_then(|v| v.as_str()) != Some("18") {
-            continue;
-        }
-        let id = format.get("format_id")?.as_str()?.to_string();
-        let url = format.get("url")?.as_str()?.to_string();
-        return Some((id, url));
-    }
-    for format in formats {
-        let vcodec = format
-            .get("vcodec")
-            .and_then(|v| v.as_str())
-            .unwrap_or("none");
-        let acodec = format
-            .get("acodec")
-            .and_then(|v| v.as_str())
-            .unwrap_or("none");
-        if vcodec == "none" || acodec == "none" {
-            continue;
-        }
-        let protocol = format
-            .get("protocol")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        if protocol.contains("m3u8") {
-            continue;
-        }
-        let id = format.get("format_id")?.as_str()?.to_string();
-        let url = format.get("url")?.as_str()?.to_string();
-        return Some((id, url));
-    }
-    None
-}
-
 pub fn fetch_video_info(url: &str) -> Result<VideoInfo> {
-    let output = run_ytdlp(&["-J", url])?;
+    let output = process::run_ytdlp(&["-J", url])?;
     let value: Value = serde_json::from_slice(&output.stdout)?;
     let title = value
         .get("title")
@@ -78,7 +42,8 @@ pub fn fetch_video_info(url: &str) -> Result<VideoInfo> {
         .and_then(|v| v.as_array())
         .map(|v| v.as_slice())
         .unwrap_or(&[]);
-    let (format_id, preview_url) = pick_muxed_format(formats).ok_or(DollytError::NoMuxedFormat)?;
+    let (format_id, preview_url) =
+        format::pick_muxed_format(formats).ok_or(DollytError::NoMuxedFormat)?;
     Ok(VideoInfo {
         title,
         duration_secs,
@@ -94,22 +59,48 @@ pub fn download_section(
     end_secs: f64,
     margin_secs: f64,
 ) -> Result<DownloadResult> {
+    let cancel = AtomicBool::new(false);
+    let slot = Arc::new(Mutex::new(None::<Child>));
+    download_section_cancellable(
+        url,
+        format_id,
+        start_secs,
+        end_secs,
+        margin_secs,
+        &cancel,
+        &slot,
+    )
+}
+
+pub fn download_section_cancellable(
+    url: &str,
+    format_id: &str,
+    start_secs: f64,
+    end_secs: f64,
+    margin_secs: f64,
+    cancel: &AtomicBool,
+    child_slot: &Arc<Mutex<Option<Child>>>,
+) -> Result<DownloadResult> {
     let lo = (start_secs - margin_secs).max(0.0);
     let hi = end_secs + margin_secs;
     let section = format!("*{lo}-{hi}");
     let out = temp_mkv_path();
+    let out_arg = out.to_str().expect("chemin temporaire UTF-8");
     let start = SystemTime::now();
-    let output = run_ytdlp(&[
+    let args = [
         "-f",
         format_id,
         "--download-sections",
         &section,
         "-o",
-        out.to_str().expect("chemin temporaire UTF-8"),
+        out_arg,
         url,
-    ])?;
+    ];
+    if let Ok(mut guard) = child_slot.lock() {
+        *guard = Some(process::spawn_ytdlp(&args)?);
+    }
+    wait_child_slot(child_slot, cancel)?;
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
-    ensure_success(&output, "yt-dlp")?;
     if !out.exists() {
         return Err(DollytError::YtdlpFailed(
             "fichier MKV absent après téléchargement".into(),
@@ -121,40 +112,63 @@ pub fn download_section(
     })
 }
 
+fn wait_child_slot(child_slot: &Arc<Mutex<Option<Child>>>, cancel: &AtomicBool) -> Result<()> {
+    loop {
+        if cancel.load(Ordering::SeqCst) {
+            if let Ok(mut guard) = child_slot.lock()
+                && let Some(child) = guard.take()
+            {
+                kill_process_tree(child.id());
+            }
+            return Err(DollytError::Cancelled);
+        }
+        let status = {
+            let mut guard = child_slot
+                .lock()
+                .map_err(|_| DollytError::YtdlpFailed("verrou job".into()))?;
+            let Some(child) = guard.as_mut() else {
+                return Err(DollytError::YtdlpFailed("processus absent".into()));
+            };
+            match child.try_wait() {
+                Ok(Some(status)) => Some(status),
+                Ok(None) => None,
+                Err(e) => return Err(DollytError::from(e)),
+            }
+        };
+        match status {
+            None => std::thread::sleep(Duration::from_millis(120)),
+            Some(status) if status.success() => {
+                let _ = child_slot.lock().map(|mut g| g.take());
+                return Ok(());
+            }
+            Some(_) => {
+                return Err(DollytError::YtdlpFailed(
+                    "yt-dlp s'est terminé avec une erreur".into(),
+                ));
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+fn kill_process_tree(pid: u32) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let mut cmd = std::process::Command::new("taskkill");
+    cmd.args(["/PID", &pid.to_string(), "/T", "/F"]);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let _ = cmd.status();
+}
+
+#[cfg(not(windows))]
+fn kill_process_tree(_pid: u32) {}
+
 fn temp_mkv_path() -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    std::env::temp_dir().join(format!("dollyt-m0-{stamp}.mkv"))
-}
-
-fn run_ytdlp(args: &[&str]) -> Result<Output> {
-    let mut cmd = Command::new("yt-dlp");
-    cmd.arg("--ignore-config");
-    for arg in args {
-        cmd.arg(arg);
-    }
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    cmd.output().map_err(DollytError::from)
-}
-
-fn ensure_success(output: &Output, tool: &str) -> Result<()> {
-    if output.status.success() {
-        return Ok(());
-    }
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let message = if stderr.trim().is_empty() {
-        stdout.trim().to_string()
-    } else {
-        stderr.trim().to_string()
-    };
-    match tool {
-        "yt-dlp" => Err(DollytError::YtdlpFailed(message)),
-        _ => Err(DollytError::FfmpegFailed(message)),
-    }
+    std::env::temp_dir().join(format!("dollyt-{stamp}.mkv"))
 }
 
 #[cfg(test)]
@@ -167,7 +181,7 @@ mod tests {
         let json = fs::read_to_string("fixtures/m0_metadata.json").expect("fixture");
         let value: Value = serde_json::from_str(&json).expect("json");
         let formats = value["formats"].as_array().expect("formats");
-        let (id, url) = pick_muxed_format(formats).expect("muxed");
+        let (id, url) = format::pick_muxed_format(formats).expect("muxed");
         assert_eq!(id, "18");
         assert!(url.starts_with("https://"));
     }
@@ -175,10 +189,11 @@ mod tests {
     #[test]
     #[ignore = "réseau YouTube requis"]
     fn live_me_at_the_zoo_pipeline() {
+        crate::bins::ensure_tools().expect("bins");
         let url = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
         let info = fetch_video_info(url).expect("métadonnées");
         assert_eq!(info.format_id, "18");
-        let dl = download_section(url, &info.format_id, 5.0, 12.0, 3.0).expect("téléchargement");
+        let dl = download_section(&url, &info.format_id, 5.0, 12.0, 3.0).expect("téléchargement");
         let cut = crate::ffmpeg::cut_exact_section(&dl.path, 5.0, 12.0).expect("découpe");
         assert!((cut.output_duration_secs - 7.0).abs() < 0.75);
         eprintln!(
@@ -192,7 +207,7 @@ mod tests {
         let json = fs::read_to_string("fixtures/m0_no18.json").expect("fixture");
         let value: Value = serde_json::from_str(&json).expect("json");
         let formats = value["formats"].as_array().expect("formats");
-        let (id, _) = pick_muxed_format(formats).expect("muxed");
+        let (id, _) = format::pick_muxed_format(formats).expect("muxed");
         assert_eq!(id, "22");
     }
 }

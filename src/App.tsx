@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { FormEvent, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import "./App.css";
 
 type VideoInfo = {
@@ -7,11 +8,6 @@ type VideoInfo = {
   durationSecs: number;
   previewUrl: string;
   formatId: string;
-};
-
-type RunCutResult = {
-  download: { path: string; elapsedMs: number };
-  cut: { path: string; outputDurationSecs: number; elapsedMs: number };
 };
 
 const DEFAULT_URL = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
@@ -22,13 +18,22 @@ function App() {
   const [startSecs, setStartSecs] = useState("5");
   const [endSecs, setEndSecs] = useState("12");
   const [status, setStatus] = useState("");
-  const [cutResult, setCutResult] = useState<RunCutResult | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const unsubs: Array<() => void> = [];
+    listen<{ percent: number; stage: string }>("job-progress", (event) => {
+      setStatus(`${event.payload.stage} — ${event.payload.percent} %`);
+    }).then((u) => unsubs.push(u));
+    listen<{ ok: boolean; message: string }>("job-finished", (event) => {
+      setStatus(event.payload.ok ? event.payload.message : event.payload.message);
+    }).then((u) => unsubs.push(u));
+    return () => unsubs.forEach((u) => u());
+  }, []);
 
   async function onLoad(e: FormEvent) {
     e.preventDefault();
     setStatus("Chargement…");
-    setCutResult(null);
     try {
       const loaded = await invoke<VideoInfo>("load_video", { rawUrl: url });
       setInfo(loaded);
@@ -43,16 +48,21 @@ function App() {
     if (!info) return;
     setStatus("Téléchargement et découpe…");
     try {
-      const result = await invoke<RunCutResult>("run_cut_pipeline", {
+      await invoke<number>("start_cut_job_command", {
         rawUrl: url,
         formatId: info.formatId,
         startSecs: Number(startSecs),
         endSecs: Number(endSecs),
       });
-      setCutResult(result);
-      setStatus(
-        `Découpe OK — MKV ${result.download.elapsedMs} ms, MP4 ${result.cut.elapsedMs} ms, durée ${result.cut.outputDurationSecs.toFixed(2)} s`,
-      );
+    } catch (err) {
+      setStatus(String(err));
+    }
+  }
+
+  async function onCancel() {
+    try {
+      await invoke("cancel_job");
+      setStatus("Annulation demandée…");
     } catch (err) {
       setStatus(String(err));
     }
@@ -104,17 +114,13 @@ function App() {
             <button type="button" onClick={onCut}>
               Tester la découpe
             </button>
+            <button type="button" onClick={onCancel}>
+              Annuler
+            </button>
           </div>
         </section>
       )}
       <p className="status">{status}</p>
-      {cutResult && (
-        <pre className="paths">
-          {cutResult.download.path}
-          {"\n"}
-          {cutResult.cut.path}
-        </pre>
-      )}
     </main>
   );
 }
