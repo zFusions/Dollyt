@@ -5,9 +5,13 @@ use serde::Serialize;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::process::Child;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::io::{BufRead, BufReader};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+pub type ProgressFn = Arc<dyn Fn(u8) + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,9 +73,11 @@ pub fn download_section(
         margin_secs,
         &cancel,
         &slot,
+        None,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn download_section_cancellable(
     url: &str,
     format_id: &str,
@@ -80,6 +86,7 @@ pub fn download_section_cancellable(
     margin_secs: f64,
     cancel: &AtomicBool,
     child_slot: &Arc<Mutex<Option<Child>>>,
+    on_progress: Option<ProgressFn>,
 ) -> Result<DownloadResult> {
     let lo = (start_secs - margin_secs).max(0.0);
     let hi = end_secs + margin_secs;
@@ -96,10 +103,17 @@ pub fn download_section_cancellable(
         out_arg,
         url,
     ];
-    if let Ok(mut guard) = child_slot.lock() {
-        *guard = Some(process::spawn_ytdlp(&args)?);
+    let mut child = process::spawn_ytdlp(&args)?;
+    let stderr = child.stderr.take();
+    let pct = Arc::new(AtomicU8::new(0));
+    if let Some(stderr) = stderr {
+        let pct_bg = Arc::clone(&pct);
+        thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg));
     }
-    wait_child_slot(child_slot, cancel)?;
+    if let Ok(mut guard) = child_slot.lock() {
+        *guard = Some(child);
+    }
+    wait_child_slot(child_slot, cancel, &pct, on_progress)?;
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
     if !out.exists() {
         return Err(DollytError::YtdlpFailed(
@@ -112,7 +126,35 @@ pub fn download_section_cancellable(
     })
 }
 
-fn wait_child_slot(child_slot: &Arc<Mutex<Option<Child>>>, cancel: &AtomicBool) -> Result<()> {
+fn read_ytdlp_stderr(stderr: std::process::ChildStderr, pct: Arc<AtomicU8>) {
+    let reader = BufReader::new(stderr);
+    for line in reader.lines().map_while(|l| l.ok()) {
+        if let Some(value) = parse_ytdlp_percent(&line) {
+            pct.store(value, Ordering::Relaxed);
+        }
+    }
+}
+
+fn parse_ytdlp_percent(line: &str) -> Option<u8> {
+    let rest = line.trim().strip_prefix("download:")?;
+    let digits: String = rest
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    digits
+        .parse::<f32>()
+        .ok()
+        .map(|v| v.clamp(0.0, 100.0) as u8)
+}
+
+fn wait_child_slot(
+    child_slot: &Arc<Mutex<Option<Child>>>,
+    cancel: &AtomicBool,
+    pct: &AtomicU8,
+    on_progress: Option<ProgressFn>,
+) -> Result<()> {
+    let mut last_emit = Instant::now();
+    let mut last_pct = 0u8;
     loop {
         if cancel.load(Ordering::SeqCst) {
             if let Ok(mut guard) = child_slot.lock()
@@ -135,8 +177,17 @@ fn wait_child_slot(child_slot: &Arc<Mutex<Option<Child>>>, cancel: &AtomicBool) 
                 Err(e) => return Err(DollytError::from(e)),
             }
         };
+        if let Some(cb) = &on_progress {
+            let now = Instant::now();
+            let current = pct.load(Ordering::Relaxed);
+            if current != last_pct && now.duration_since(last_emit) >= Duration::from_millis(100) {
+                cb(current);
+                last_pct = current;
+                last_emit = now;
+            }
+        }
         match status {
-            None => std::thread::sleep(Duration::from_millis(120)),
+            None => std::thread::sleep(Duration::from_millis(100)),
             Some(status) if status.success() => {
                 let _ = child_slot.lock().map(|mut g| g.take());
                 return Ok(());

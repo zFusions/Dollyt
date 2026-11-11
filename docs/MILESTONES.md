@@ -12,11 +12,11 @@ Terminé (GO). Rapport : [plans/M0-report.md](plans/M0-report.md).
 
 ## M1 — Moteur
 
-En cours. Plan : [plans/M1.md](plans/M1.md). Binaires, hashs, sélection de format, jobs, progression, annulation, erreurs. Revue sécurité en fin de jalon.
+En cours. Plan : [plans/M1.md](plans/M1.md), rapport : [plans/M1-report.md](plans/M1-report.md). UI Chambre noire amorcée (accueil + éditeur minimal).
 
 ## M2 — Éditeur et timeline
 
-Storyboards, poignées, raccourcis, affinage sur le clip local.
+Storyboards, poignées, raccourcis, affinage sur le clip local. Timeline réelle après clôture M1.
 
 ## M3 — Presets, export, paramètres
 

@@ -141,9 +141,20 @@ fn run_cut_job(
     if cancel.load(Ordering::SeqCst) {
         return Err("annulé".into());
     }
-    emit(app, job_id, "download", 20)?;
+    let app_dl = app.clone();
+    let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
+        let mapped = 20u8.saturating_add(((raw as u16).saturating_mul(48) / 100) as u8);
+        let _ = emit(&app_dl, job_id, "download", mapped);
+    });
     let download = ytdlp::download_section_cancellable(
-        &url, format_id, start_secs, end_secs, 3.0, cancel, child_slot,
+        &url,
+        format_id,
+        start_secs,
+        end_secs,
+        3.0,
+        cancel,
+        child_slot,
+        Some(on_progress),
     )
     .map_err(|e| e.to_string())?;
     if cancel.load(Ordering::SeqCst) {

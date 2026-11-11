@@ -1,0 +1,89 @@
+@import "tailwindcss";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-sans/400.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+:root {
+  --bg: #0a0807;
+  --surface: #110e0c;
+  --raised: #181411;
+  --line: #2b2420;
+  --line-strong: #3a322c;
+  --text: #e9e1d3;
+  --text-dim: #9a8f83;
+  --text-faint: #62594f;
+  --safelight: #e03a1e;
+  --safelight-deep: #8e2713;
+  --ok: #8fa37e;
+  --warn: #c9963f;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-text-faint: var(--text-faint);
+  --color-safelight: var(--safelight);
+  --color-safelight-deep: var(--safelight-deep);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --font-serif: "Instrument Serif", serif;
+  --font-sans: "Instrument Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --radius-control: 2px;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+/* shortcut: tuile PNG grain 256px, générer en M5 si besoin */
+.room-grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  opacity: 0.05;
+  background-image: repeating-radial-gradient(
+    circle at 17% 23%,
+    #fff 0,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+.room-halo {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    120% 80% at 8% 0%,
+    color-mix(in srgb, var(--safelight) 8%, transparent),
+    transparent 55%
+  );
+}
+
+:focus-visible {
+  outline: 1px solid var(--safelight);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
