@@ -37,6 +37,9 @@ fn run_exe(program: &Path, args: &[&str], ignore_config: bool) -> Result<Output>
 pub fn spawn_ytdlp(args: &[&str]) -> Result<std::process::Child> {
     let mut cmd = Command::new(&tools().ytdlp);
     cmd.arg("--ignore-config");
+    cmd.arg("--newline");
+    cmd.arg("--progress-template");
+    cmd.arg("download:%(progress._percent_str)s");
     for arg in args {
         cmd.arg(arg);
     }
