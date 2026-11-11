@@ -1,13 +1,8 @@
 use crate::error::{DollytError, Result};
+use crate::process;
 use serde::Serialize;
 use std::path::Path;
-use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,9 +35,9 @@ pub fn cut_exact_section(
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    let out = std::env::temp_dir().join(format!("dollyt-m0-cut-{stamp}.mp4"));
+    let out = std::env::temp_dir().join(format!("dollyt-cut-{stamp}.mp4"));
     let start = SystemTime::now();
-    let output = run_ffmpeg(&[
+    let output = process::run_ffmpeg(&[
         "-y",
         "-ss",
         &format!("{relative_start:.3}"),
@@ -73,7 +68,7 @@ pub fn cut_exact_section(
 }
 
 fn probe_start_secs(path: &str) -> Result<f64> {
-    let output = run_ffprobe(&[
+    let output = process::run_ffprobe(&[
         "-v",
         "error",
         "-show_entries",
@@ -87,7 +82,7 @@ fn probe_start_secs(path: &str) -> Result<f64> {
 }
 
 fn probe_duration_secs(path: &str) -> Result<f64> {
-    let output = run_ffprobe(&[
+    let output = process::run_ffprobe(&[
         "-v",
         "error",
         "-show_entries",
@@ -106,27 +101,7 @@ fn parse_first_float(bytes: &[u8]) -> Option<f64> {
         .find_map(|line| line.trim().parse::<f64>().ok())
 }
 
-fn run_ffprobe(args: &[&str]) -> Result<Output> {
-    let mut cmd = Command::new("ffprobe");
-    for arg in args {
-        cmd.arg(arg);
-    }
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    Ok(cmd.output()?)
-}
-
-fn run_ffmpeg(args: &[&str]) -> Result<Output> {
-    let mut cmd = Command::new("ffmpeg");
-    for arg in args {
-        cmd.arg(arg);
-    }
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    Ok(cmd.output()?)
-}
-
-fn ensure_success(output: &Output) -> Result<()> {
+fn ensure_success(output: &std::process::Output) -> Result<()> {
     if output.status.success() {
         return Ok(());
     }

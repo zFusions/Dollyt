@@ -14,6 +14,14 @@ pub enum DollytError {
     Io(#[from] std::io::Error),
     #[error("JSON invalide : {0}")]
     Json(#[from] serde_json::Error),
+    #[error("binaire manquant : {0}")]
+    BinMissing(String),
+    #[error("téléchargement de binaire : {0}")]
+    BinDownload(String),
+    #[error("hash invalide pour {tool}")]
+    BinHashMismatch { tool: String },
+    #[error("opération annulée")]
+    Cancelled,
 }
 
 pub type Result<T> = std::result::Result<T, DollytError>;

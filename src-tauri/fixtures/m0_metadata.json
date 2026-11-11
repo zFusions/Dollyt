@@ -15,6 +15,22 @@
       "vcodec": "avc1.42001E",
       "acodec": "mp4a.40.2",
       "url": "https://example.com/muxed18.mp4"
+    },
+    {
+      "format_id": "308",
+      "protocol": "https",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "height": 1440,
+      "fps": 60,
+      "url": "https://example.com/v308"
+    },
+    {
+      "format_id": "251",
+      "protocol": "https",
+      "vcodec": "none",
+      "acodec": "opus",
+      "url": "https://example.com/a251"
     }
   ]
 }
