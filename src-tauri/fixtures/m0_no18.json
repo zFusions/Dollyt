@@ -1,0 +1,20 @@
+{
+  "title": "Sans itag 18",
+  "duration": 60,
+  "formats": [
+    {
+      "format_id": "625",
+      "protocol": "m3u8",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "url": "https://example.com/hls.m3u8"
+    },
+    {
+      "format_id": "22",
+      "protocol": "https",
+      "vcodec": "avc1",
+      "acodec": "mp4a",
+      "url": "https://example.com/muxed22.mp4"
+    }
+  ]
+}

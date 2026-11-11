@@ -8,11 +8,9 @@ Les décisions de stack et de direction artistique sont dans [DESIGN.md](DESIGN.
 
 ## M0 — Spike preview
 
-Valider la preview avant le travail de design.
+Implémenté. Rapport : [plans/M0-report.md](plans/M0-report.md).
 
-Lien, métadonnées, lecture de l'itag 18 dans Tauri, une plage, un téléchargement en copie de flux, découpe exacte FFmpeg. Rapport de mesures. Go ou no-go avant de continuer.
-
-Le spike est jetable.
+Reste à valider manuellement : `npm run tauri dev`, lecture `<video>` (son, seek). Puis décision go / no-go avant M1.
 
 ## M1 — Moteur
 
