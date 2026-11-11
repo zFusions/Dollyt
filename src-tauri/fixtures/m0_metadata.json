@@ -1,0 +1,20 @@
+{
+  "title": "Fixture",
+  "duration": 19,
+  "formats": [
+    {
+      "format_id": "625",
+      "protocol": "m3u8",
+      "vcodec": "vp9",
+      "acodec": "none",
+      "url": "https://example.com/hls.m3u8"
+    },
+    {
+      "format_id": "18",
+      "protocol": "https",
+      "vcodec": "avc1.42001E",
+      "acodec": "mp4a.40.2",
+      "url": "https://example.com/muxed18.mp4"
+    }
+  ]
+}
