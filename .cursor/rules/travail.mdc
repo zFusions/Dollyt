@@ -1,0 +1,23 @@
+---
+description: Façon de travailler sur Dollyt. Pas d'invention, commits, dépendances, arrêt de jalon.
+globs:
+alwaysApply: true
+---
+
+# Travail Dollyt
+
+Pas d'invention. Si une API n'est pas sûre (Tauri 2, plugins, yt-dlp, FFmpeg), lire la documentation (Context7 d'abord) ou tester. Ne pas deviner un nom de plugin, de permission ou de flag. Si la doc est introuvable, écrire « non vérifié ».
+
+Commits conventionnels, petits : `feat:`, `fix:`, `docs:`, `chore:`. Pas de push, de merge ni de release sans accord explicite.
+
+Toute nouvelle dépendance est justifiée en une ligne : poids, maintenance, licence.
+
+Quand une mesure est faite (RAM, CPU, vitesse), la consigner. Ne promettre aucun chiffre.
+
+Même version dans `tauri.conf.json`, `package.json` et `Cargo.toml` dès que ces fichiers existent. CI en `--locked`.
+
+Au début d'un jalon : lever seulement les ambiguïtés du jalon. Les décisions de stack et de direction artistique ne se rouvrent pas. Le plan s'écrit dans `docs/plans/Mx.md` et se valide avant l'exécution.
+
+À la fin d'un jalon : lint, tests, ce qui marche, ce qui n'est pas vérifié, puis arrêt. Le jalon suivant attend une validation.
+
+Pas de code applicatif avant la validation du socle documentaire, ni avant l'ouverture explicite de M0.

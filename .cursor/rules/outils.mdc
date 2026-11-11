@@ -1,0 +1,47 @@
+---
+description: Hiérarchie des skills, skills interdits, MCP et plugins pour Dollyt.
+globs:
+alwaysApply: true
+---
+
+# Outils Dollyt
+
+## Hiérarchie
+
+1. Le brief du projet et `docs/DESIGN.md`.
+2. Les skills du projet : `dollyt-design`, `dollyt-engine`.
+3. Les skills tiers.
+
+Un skill tiers ne change jamais la direction artistique, la stack, les règles moteur, ni le rythme des jalons validés.
+
+Un skill s'invoque par son nom réel dans Cursor. S'il est absent, le dire et continuer sans. Un à trois skills par tâche, annoncés en une ligne, avec la raison. Avant d'exécuter un script fourni par un skill tiers, le lire et dire ce qu'il fait. Aucun script de skill sans accord.
+
+« Terminé » signifie : commandes lancées et sorties montrées.
+
+## Skills à ne pas utiliser
+
+Ils imposent une autre esthétique : `design-taste-frontend`, `design-taste-frontend-v1`, `high-end-visual-design`, `minimalist-ui`, `industrial-brutalist-ui`, `gpt-taste`, `stitch-design-taste`, `redesign-existing-projects`, `brandkit`, `ui-ux-pro-max`, `software-ui-ux-design`. Une critique avec l'un d'eux seulement si elle est demandée explicitement.
+
+Animation lourde : `framer-motion-animator`, `gsap-framer-scroll-animation`.
+
+Hors sujet : SEO, CRO, copywriting de conversion, Shopify, Liquid, analyse de concurrence, link prospecting, Lighthouse, PageSpeed, Core Web Vitals.
+
+Contournement de protections, jamais : `camoufox-cli`, `anti-detect-browser`, `playwright-bot-bypass`. Dollyt ne contourne aucune protection et n'usurpe aucune empreinte de navigateur.
+
+Provenance non relue, ne pas utiliser tant qu'ils n'ont pas été relus : `impeccable`, `g`.
+
+Famille Caveman : ne pas activer `caveman`, `ultracave`, `megacave` ou équivalents de sa propre initiative. Rapports, docs, commits et textes d'interface en français normal et complet. Les autres skills de cette famille (`investigate-first`, `surgical-patch`, `safe-refactor`, `verify-and-stop`, `lean-build`, etc.) seulement après lecture de leur contenu et confirmation qu'ils ne contredisent pas le brief.
+
+## MCP
+
+- Context7 avant du code qui appelle Tauri 2, un crate Rust, React, Vite ou Tailwind 4. Préciser la version ciblée. Si la doc est introuvable, écrire « non vérifié ».
+- GitHub : issues, PR, logs d'Actions. Aucun push, merge ni release sans accord explicite.
+- Playwright : uniquement l'interface locale en mode mock (`npm run dev`). Jamais contre YouTube ni un autre site tiers.
+- Aucun autre serveur MCP sans demander. Ne jamais envoyer de secret (token, cookie, URL signée) à un serveur MCP ni le coller dans une réponse.
+- Un serveur MCP local s'exécute avec les droits Windows de l'utilisateur : lire sa configuration (commande, permissions) avant de l'activer.
+
+## Plugins
+
+Un plugin peut regrouper règles, skills, sous-agents, commandes, serveurs MCP et hooks. Les hooks et les serveurs locaux s'exécutent avec les droits Windows de l'utilisateur.
+
+Ne pas installer ni activer un plugin sans accord. Avant d'en proposer un, ouvrir et lister ce qu'il apporte (règles, hooks, `mcp.json`).
