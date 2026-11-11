@@ -8,13 +8,11 @@ Les décisions de stack et de direction artistique sont dans [DESIGN.md](DESIGN.
 
 ## M0 — Spike preview
 
-Implémenté. Rapport : [plans/M0-report.md](plans/M0-report.md).
-
-Reste à valider manuellement : `npm run tauri dev`, lecture `<video>` (son, seek). Puis décision go / no-go avant M1.
+Terminé (GO). Rapport : [plans/M0-report.md](plans/M0-report.md).
 
 ## M1 — Moteur
 
-Binaires, vérification des hashs, sélection de format, file de jobs, progression, annulation, erreurs. Passe de revue sécurité à la fin.
+En cours. Plan : [plans/M1.md](plans/M1.md). Binaires, hashs, sélection de format, jobs, progression, annulation, erreurs. Revue sécurité en fin de jalon.
 
 ## M2 — Éditeur et timeline
 

@@ -1,6 +1,6 @@
 # Rapport M0 — Spike preview
 
-Statut : terminé, en attente de validation humaine avant M1.
+Statut : **GO** validé (preview + découpe confirmées manuellement, mars 2026).
 
 ## Environnement
 
@@ -21,9 +21,9 @@ Statut : terminé, en attente de validation humaine avant M1.
 |------|----------|-------|
 | Métadonnées `-J` | OK | test ignoré `live_me_at_the_zoo`, format `18` |
 | URL signée format 18 | OK | extraite du JSON |
-| Lecture `<video>` directe | non vérifié ici | lancer `npm run tauri dev` et confirmer seek + son |
+| Lecture `<video>` directe | OK | confirmé par l’utilisateur (`npm run tauri dev`) |
 | Proxy local | non utilisé | réservé si la CSP ou WebView2 bloque |
-| Seek / son | non vérifié ici | validation manuelle requise |
+| Seek / son | OK | validation manuelle utilisateur |
 
 CSP dans `tauri.conf.json` : `media-src` et `connect-src` incluent `https://*.googlevideo.com`. Pas de proxy.
 
@@ -50,8 +50,8 @@ npm run build
 
 ## Go / no-go
 
-- **Décision proposée : GO conditionnel**
-- **Raisons :** chaîne yt-dlp → section MKV → ffprobe → FFmpeg validée en test réel avec mesures. Le code Rust est en place pour la preview dans Tauri. Il reste à confirmer la lecture `<video>` dans WebView2 (`npm run tauri dev`) : seek, son, pas de blocage CSP.
+- **Décision : GO**
+- **Raisons :** chaîne métadonnées → preview → découpe validée (tests automatisés + validation UI).
 
 ## Non vérifié (hors M0)
 

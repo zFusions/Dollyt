@@ -1,10 +1,17 @@
+mod bins;
 mod error;
 mod ffmpeg;
+mod format;
+mod jobs;
+mod log;
+mod process;
 mod url;
 mod ytdlp;
 
 use ffmpeg::CutResult;
+use jobs::{JobsState, start_cut_job};
 use serde::Serialize;
+use std::sync::Arc;
 use ytdlp::{DownloadResult, VideoInfo};
 
 #[derive(Debug, Serialize)]
@@ -46,14 +53,42 @@ fn run_cut_pipeline(
     Ok(RunCutResult { download, cut })
 }
 
+#[tauri::command]
+fn start_cut_job_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Arc<JobsState>>,
+    raw_url: String,
+    format_id: String,
+    start_secs: f64,
+    end_secs: f64,
+) -> Result<u64, String> {
+    start_cut_job(
+        app,
+        Arc::clone(state.inner()),
+        raw_url,
+        format_id,
+        start_secs,
+        end_secs,
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(Arc::new(JobsState::default()))
+        .setup(|app| {
+            bins::ensure_tools().map_err(|e| e.to_string())?;
+            log::log_line("application démarrée");
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             load_video,
             download_section,
-            run_cut_pipeline
+            run_cut_pipeline,
+            start_cut_job_command,
+            jobs::cancel_job
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

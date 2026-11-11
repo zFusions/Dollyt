@@ -1,0 +1,181 @@
+use crate::ffmpeg;
+use crate::log;
+use crate::url;
+use crate::ytdlp;
+use serde::Serialize;
+use std::process::Child;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use tauri::{AppHandle, Emitter, State};
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobProgress {
+    pub job_id: u64,
+    pub stage: String,
+    pub percent: u8,
+}
+
+pub struct JobsState {
+    next_id: Mutex<u64>,
+    active: Mutex<Option<ActiveJob>>,
+}
+
+struct ActiveJob {
+    cancel: Arc<AtomicBool>,
+    child: Arc<Mutex<Option<Child>>>,
+}
+
+impl Default for JobsState {
+    fn default() -> Self {
+        Self {
+            next_id: Mutex::new(1),
+            active: Mutex::new(None),
+        }
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobFinished {
+    pub job_id: u64,
+    pub ok: bool,
+    pub message: String,
+}
+
+#[tauri::command]
+pub fn cancel_job(state: State<'_, Arc<JobsState>>) -> Result<(), String> {
+    let mut guard = state.active.lock().map_err(|e| e.to_string())?;
+    let Some(job) = guard.as_mut() else {
+        return Ok(());
+    };
+    job.cancel.store(true, Ordering::SeqCst);
+    if let Some(child) = job.child.lock().map_err(|e| e.to_string())?.take() {
+        kill_process_tree(child.id());
+    }
+    log::log_line("job annulé");
+    *guard = None;
+    Ok(())
+}
+
+pub fn start_cut_job(
+    app: AppHandle,
+    state: Arc<JobsState>,
+    raw_url: String,
+    format_id: String,
+    start_secs: f64,
+    end_secs: f64,
+) -> Result<u64, String> {
+    {
+        let active = state.active.lock().map_err(|e| e.to_string())?;
+        if active.is_some() {
+            return Err("Un job est déjà en cours".into());
+        }
+    }
+    let job_id = {
+        let mut next = state.next_id.lock().map_err(|e| e.to_string())?;
+        let id = *next;
+        *next += 1;
+        id
+    };
+    let cancel = Arc::new(AtomicBool::new(false));
+    let child_slot = Arc::new(Mutex::new(None::<Child>));
+    {
+        let mut active = state.active.lock().map_err(|e| e.to_string())?;
+        *active = Some(ActiveJob {
+            cancel: Arc::clone(&cancel),
+            child: Arc::clone(&child_slot),
+        });
+    }
+    let app2 = app.clone();
+    let state2 = Arc::clone(&state);
+    thread::spawn(move || {
+        let result = run_cut_job(
+            &app2,
+            job_id,
+            &cancel,
+            &child_slot,
+            &raw_url,
+            &format_id,
+            start_secs,
+            end_secs,
+        );
+        let (ok, message) = match result {
+            Ok(msg) => (true, msg),
+            Err(e) => (false, e),
+        };
+        let _ = app2.emit(
+            "job-finished",
+            JobFinished {
+                job_id,
+                ok,
+                message,
+            },
+        );
+        if let Ok(mut active) = state2.active.lock() {
+            *active = None;
+        }
+    });
+    Ok(job_id)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_cut_job(
+    app: &AppHandle,
+    job_id: u64,
+    cancel: &AtomicBool,
+    child_slot: &Arc<Mutex<Option<Child>>>,
+    raw_url: &str,
+    format_id: &str,
+    start_secs: f64,
+    end_secs: f64,
+) -> Result<String, String> {
+    emit(app, job_id, "validation", 5)?;
+    let url = url::validate_youtube_url(raw_url).map_err(|e| e.to_string())?;
+    if cancel.load(Ordering::SeqCst) {
+        return Err("annulé".into());
+    }
+    emit(app, job_id, "download", 20)?;
+    let download = ytdlp::download_section_cancellable(
+        &url, format_id, start_secs, end_secs, 3.0, cancel, child_slot,
+    )
+    .map_err(|e| e.to_string())?;
+    if cancel.load(Ordering::SeqCst) {
+        return Err("annulé".into());
+    }
+    emit(app, job_id, "encode", 70)?;
+    let cut = ffmpeg::cut_exact_section(&download.path, start_secs, end_secs)
+        .map_err(|e| e.to_string())?;
+    emit(app, job_id, "done", 100)?;
+    log::log_line(&format!(
+        "job {job_id} ok download_ms={} cut_ms={}",
+        download.elapsed_ms, cut.elapsed_ms
+    ));
+    Ok(format!("MKV: {}\nMP4: {}", download.path, cut.path))
+}
+
+fn emit(app: &AppHandle, job_id: u64, stage: &str, percent: u8) -> Result<(), String> {
+    app.emit(
+        "job-progress",
+        JobProgress {
+            job_id,
+            stage: stage.to_string(),
+            percent,
+        },
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn kill_process_tree(pid: u32) {
+    let mut cmd = std::process::Command::new("taskkill");
+    cmd.args(["/PID", &pid.to_string(), "/T", "/F"]);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let _ = cmd.status();
+}
