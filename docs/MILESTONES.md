@@ -1,6 +1,6 @@
 # Jalons
 
-Le socle documentaire est posé. M0 ne commence qu'après validation explicite.
+Le socle documentaire est validé. Le plan M0 est dans [plans/M0.md](plans/M0.md) ; l'exécution commence après validation de ce plan.
 
 À la fin de chaque jalon : lancer lint et tests, résumer ce qui marche, lister ce qui n'est pas vérifié, s'arrêter. Le jalon suivant attend une validation.
 
