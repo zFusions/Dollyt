@@ -6,7 +6,7 @@ import { previewSrc } from "../lib/previewSrc";
 import { useDollytStore } from "../store";
 import { t } from "../i18n";
 
-type ActionIconName = "refresh" | "scissors" | "home" | "folder";
+type ActionIconName = "refresh" | "scissors" | "folder";
 
 function ActionIcon({ name }: { name: ActionIconName }) {
   const paths: Record<ActionIconName, ReactNode> = {
@@ -23,12 +23,6 @@ function ActionIcon({ name }: { name: ActionIconName }) {
         <circle cx="6" cy="6" r="2.5" />
         <circle cx="6" cy="18" r="2.5" />
         <path d="m8.2 7.3 10.3 10.3M8.2 16.7 18.5 6.4" />
-      </>
-    ),
-    home: (
-      <>
-        <path d="m3 10 9-7 9 7" />
-        <path d="M5 9v11h14V9M9 20v-6h6v6" />
       </>
     ),
     folder: (
@@ -133,10 +127,6 @@ export function DownloadView() {
                   <ActionIcon name="scissors" />
                   {t("newClip")}
                 </button>
-                <button type="button" className="btn btn-sm" onClick={goHome}>
-                  <ActionIcon name="home" />
-                  {t("newLink")}
-                </button>
                 <button
                   type="button"
                   className="btn btn-sm download-open-file"
@@ -170,10 +160,6 @@ export function DownloadView() {
               <button type="button" className="btn btn-primary btn-sm" onClick={retry}>
                 <ActionIcon name="refresh" />
                 {t("retry")}
-              </button>
-              <button type="button" className="btn btn-sm" onClick={goHome}>
-                <ActionIcon name="home" />
-                {t("newLink")}
               </button>
             </div>
           </section>
