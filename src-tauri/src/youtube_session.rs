@@ -43,3 +43,9 @@ pub fn pick_cookies_file() -> Result<Option<String>, String> {
         .pick_file();
     Ok(path.map(|p| p.to_string_lossy().into_owned()))
 }
+
+#[tauri::command]
+pub fn pick_export_directory() -> Result<Option<String>, String> {
+    let path = rfd::FileDialog::new().pick_folder();
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
