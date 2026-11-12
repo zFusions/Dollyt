@@ -13,12 +13,13 @@ import { Panel, SettingRow } from "../components/ui/Panel";
 import { Switch } from "../components/Toggle";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useDollytStore } from "../store";
-import { t } from "../i18n";
+import { setLocale, t, useLocale } from "../i18n";
 
 const DEFAULTS: Settings = {
   exportDir: "",
   nameTemplate: "{titre}_depuis-{debut}s_jusqu-a-{fin}s",
   hardwareEncode: false,
+  autoUpdateYtdlp: false,
   ytdlpCookiesBrowser: "",
   ytdlpCookiesFile: "",
   youtubeOnboardingDone: true,
@@ -32,6 +33,7 @@ const DEFAULTS: Settings = {
 };
 
 export function SettingsView() {
+  const locale = useLocale();
   const setSelectedPresetId = useDollytStore((s) => s.setSelectedPresetId);
   const [draft, setDraft] = useState<Settings>(DEFAULTS);
   const [msg, setMsg] = useState("");
@@ -49,6 +51,7 @@ export function SettingsView() {
         setDraft({
           ...DEFAULTS,
           ...s,
+          autoUpdateYtdlp: s.autoUpdateYtdlp ?? false,
           defaultPresetId: presetId,
           ytdlpCookiesBrowser: s.ytdlpCookiesBrowser ?? "",
           ytdlpCookiesFile: s.ytdlpCookiesFile ?? "",
@@ -151,6 +154,24 @@ export function SettingsView() {
       </header>
 
       <section className="set-section">
+        <h2 className="set-heading">{t("language")}</h2>
+        <Panel>
+          <div className="set-group">
+            <SettingRow label={t("language")} hint={t("savedLocally")}>
+              <select
+                className="field"
+                value={locale}
+                onChange={(event) => setLocale(event.target.value as "fr" | "en")}
+              >
+                <option value="fr">{t("french")}</option>
+                <option value="en">{t("english")}</option>
+              </select>
+            </SettingRow>
+          </div>
+        </Panel>
+      </section>
+
+      <section className="set-section">
         <h2 className="set-heading">{t("export")}</h2>
         <Panel>
           <div className="set-group">
@@ -215,7 +236,33 @@ export function SettingsView() {
           <div className="set-group">
             <SettingRow
               label="yt-dlp"
-              hint="Remplace le binaire yt-dlp fourni avec l'app"
+              hint="Binaire officiel vérifié par SHA-256 avant utilisation"
+            >
+              <span className="meta">Sécurisé</span>
+            </SettingRow>
+          </div>
+        </Panel>
+      </section>
+
+      <section className="set-section">
+        <h2 className="set-heading">Mises à jour</h2>
+        <Panel>
+          <div className="set-group">
+            <SettingRow
+              label="Mise à jour automatique de yt-dlp"
+              hint="Désactivée par défaut. Quand elle est activée, Dollyt vérifie la version épinglée au démarrage."
+            >
+              <Switch
+                checked={draft.autoUpdateYtdlp}
+                onChange={(value) =>
+                  setDraft((current) => ({ ...current, autoUpdateYtdlp: value }))
+                }
+                label="Mise à jour automatique de yt-dlp"
+              />
+            </SettingRow>
+            <SettingRow
+              label="Version de yt-dlp"
+              hint="Le fichier vient uniquement de la release GitHub officielle et son SHA-256 est vérifié avant remplacement."
             >
               <PrimaryButton
                 variant="default"
@@ -223,7 +270,7 @@ export function SettingsView() {
                 onClick={onUpdateYtdlp}
                 disabled={busy}
               >
-                Mettre à jour
+                Vérifier maintenant
               </PrimaryButton>
             </SettingRow>
           </div>

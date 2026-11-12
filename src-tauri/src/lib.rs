@@ -29,6 +29,19 @@ pub fn run() {
         .setup(|app| {
             win_priority::boost_app_process();
             bins::ensure_tools().map_err(|e| e.to_string())?;
+            match settings::load() {
+                Ok(config) if config.auto_update_ytdlp => {
+                    if let Err(error) = bins::update_ytdlp_manual() {
+                        log::log_line(&format!("mise à jour automatique yt-dlp échouée: {error}"));
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    log::log_line(&format!(
+                        "impossible de lire le réglage de mise à jour yt-dlp: {error}"
+                    ));
+                }
+            }
             let _ = storage::prune_on_startup();
             log::log_line("application démarrée");
             if let Some(w) = app.get_webview_window("main") {
@@ -38,6 +51,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::load_video,
+            commands::reveal_file,
             commands::resolve_preview_url,
             commands::start_local_preview,
             commands::cancel_local_preview,

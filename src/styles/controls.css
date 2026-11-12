@@ -189,6 +189,15 @@
     width: 24px;
     height: 24px;
     color: var(--fg-2);
+    background: none;
+    mask: none;
+    -webkit-mask: none;
+  }
+  .preset-app-icon--shorts {
+    display: block;
+    background: currentColor;
+    mask: url("/icons/youtube-shorts.png") center / contain no-repeat;
+    -webkit-mask: url("/icons/youtube-shorts.png") center / contain no-repeat;
   }
   .custom-select-option[data-selected] .preset-app-icon {
     color: var(--fg);

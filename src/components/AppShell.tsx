@@ -22,7 +22,7 @@ export function AppShell({
   onNav,
   editorEnabled,
 }: Props) {
-  const landing = shownScreen === "home";
+  const landing = shownScreen === "home" || shownScreen === "download";
   const studio = shownScreen === "editor";
   const shellClass = landing
     ? "shell shell--home"

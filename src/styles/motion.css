@@ -44,12 +44,12 @@
     filter: blur(0);
   }
   .view-stage--leave {
-    animation: dollyt-page-leave 260ms var(--ease-out) both;
+    animation: dollyt-page-leave 170ms var(--ease-out) both;
     pointer-events: none;
     will-change: opacity, transform, filter;
   }
   .view-stage--enter {
-    animation: dollyt-page-enter 360ms var(--ease-out) both;
+    animation: dollyt-page-enter 240ms var(--ease-out) both;
     pointer-events: none;
     will-change: opacity, transform, filter;
   }

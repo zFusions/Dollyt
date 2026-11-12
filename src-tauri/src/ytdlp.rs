@@ -19,6 +19,7 @@ pub struct VideoInfo {
     pub title: String,
     pub duration_secs: f64,
     pub preview_url: String,
+    pub thumbnail_url: Option<String>,
     pub format_id: String,
     pub export_format_id: String,
     pub preview_fps: f64,
@@ -87,6 +88,10 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
         .get("duration")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
+    let thumbnail_url = value
+        .get("thumbnail")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
     let formats = value
         .get("formats")
         .and_then(|v| v.as_array())
@@ -107,6 +112,7 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
         title,
         duration_secs,
         preview_url,
+        thumbnail_url,
         format_id,
         export_format_id,
         preview_fps,
@@ -198,6 +204,21 @@ pub fn download_section_cancellable(
     child_slot: &Arc<Mutex<Option<Child>>>,
     on_progress: Option<ProgressFn>,
 ) -> Result<DownloadResult> {
+    if !valid_format_selector(format_id) {
+        return Err(DollytError::YtdlpFailed(
+            "sélecteur de format invalide".into(),
+        ));
+    }
+    if !start_secs.is_finite()
+        || !end_secs.is_finite()
+        || start_secs < 0.0
+        || end_secs <= start_secs
+        || end_secs - start_secs > 86_400.0
+    {
+        return Err(DollytError::YtdlpFailed(
+            "plage de téléchargement invalide".into(),
+        ));
+    }
     let lo = (start_secs - margin_secs).max(0.0);
     let hi = end_secs + margin_secs;
     let section = format!("*{lo}-{hi}");
@@ -217,6 +238,7 @@ pub fn download_section_cancellable(
     if format_id.contains('+') {
         args.extend(["--merge-output-format", "mkv"]);
     }
+
     args.push(url);
     let args = args.as_slice();
     let mut child = process::spawn_ytdlp(args)?;
@@ -226,6 +248,7 @@ pub fn download_section_cancellable(
         let pct_bg = Arc::clone(&pct);
         thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg));
     }
+
     if let Ok(mut guard) = child_slot.lock() {
         *guard = Some(child);
     }
@@ -240,6 +263,18 @@ pub fn download_section_cancellable(
         path: out.to_string_lossy().into_owned(),
         elapsed_ms,
     })
+}
+
+fn valid_format_selector(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with('-')
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(
+                    byte,
+                    b'+' | b'*' | b'/' | b',' | b'.' | b'[' | b']' | b'(' | b')' | b'_'
+                )
+        })
 }
 
 fn read_ytdlp_stderr(stderr: std::process::ChildStderr, pct: Arc<AtomicU8>) {
@@ -374,5 +409,12 @@ mod tests {
         let formats = value["formats"].as_array().expect("formats");
         let (id, _) = format::pick_muxed_format(formats).expect("muxed");
         assert_eq!(id, "22");
+    }
+
+    #[test]
+    fn rejects_option_like_format_selectors() {
+        assert!(!valid_format_selector("--exec"));
+        assert!(!valid_format_selector("18\n--exec"));
+        assert!(valid_format_selector("bestvideo+bestaudio"));
     }
 }

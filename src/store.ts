@@ -4,7 +4,54 @@ import { EDITOR_QUARANTINED } from "./editorAvailability";
 
 export type { VideoInfo };
 
-export type Screen = "home" | "editor" | "presets" | "settings" | "queue";
+export type Screen = "home" | "download" | "editor" | "presets" | "settings" | "queue";
+export type DownloadState = "idle" | "loading" | "success" | "error";
+export type HistoryEntry = {
+  id: string;
+  title: string;
+  url: string;
+  outputPath: string;
+  thumbnailUrl: string;
+  kind: "clip" | "full";
+  createdAt: number;
+};
+
+const HISTORY_KEY = "dollyt.history.v1";
+
+function readHistory(): HistoryEntry[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is HistoryEntry => {
+      if (!entry || typeof entry !== "object") return false;
+      const item = entry as Partial<HistoryEntry>;
+      return (
+        typeof item.id === "string" &&
+        typeof item.title === "string" &&
+        typeof item.url === "string" &&
+        typeof item.outputPath === "string" &&
+        typeof item.thumbnailUrl === "string" &&
+        (item.kind === "clip" || item.kind === "full") &&
+        typeof item.createdAt === "number"
+      );
+    });
+  } catch (error) {
+    console.warn("Impossible de lire l’historique local.", error);
+    return [];
+  }
+}
+
+function writeHistory(history: HistoryEntry[]) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch (error) {
+    console.warn("Impossible d’enregistrer l’historique local.", error);
+  }
+}
 
 type DollytState = {
   screen: Screen;
@@ -16,6 +63,11 @@ type DollytState = {
   playheadSecs: number;
   status: string;
   jobPercent: number;
+  downloadState: DownloadState;
+  downloadStage: string;
+  downloadPath: string;
+  downloadOutputPath: string;
+  history: HistoryEntry[];
   selectedPresetId: string;
   exportFullVideo: boolean;
   setUrl: (url: string) => void;
@@ -26,6 +78,17 @@ type DollytState = {
   setPlayhead: (t: number) => void;
   setStatus: (status: string) => void;
   setJobPercent: (n: number) => void;
+  beginDownload: () => void;
+  setDownloadProgress: (stage: string, percent: number) => void;
+  finishDownload: (
+    ok: boolean,
+    message: string,
+    previewPath?: string,
+    outputPath?: string,
+  ) => void;
+  addHistory: (entry: HistoryEntry) => void;
+  removeHistory: (id: string) => void;
+  resetDownload: () => void;
   setSelectedPresetId: (id: string) => void;
   setExportFullVideo: (v: boolean) => void;
   go: (screen: Screen) => void;
@@ -43,6 +106,11 @@ export const useDollytStore = create<DollytState>((set) => ({
   playheadSecs: 5,
   status: "",
   jobPercent: 0,
+  downloadState: "idle",
+  downloadStage: "",
+  downloadPath: "",
+  downloadOutputPath: "",
+  history: readHistory(),
   selectedPresetId: "tiktok",
   exportFullVideo: false,
   setUrl: (url) => set({ url }),
@@ -69,6 +137,49 @@ export const useDollytStore = create<DollytState>((set) => ({
   setPlayhead: (playheadSecs) => set({ playheadSecs }),
   setStatus: (status) => set({ status }),
   setJobPercent: (jobPercent) => set({ jobPercent }),
+  beginDownload: () =>
+    set({
+      downloadState: "loading",
+      downloadStage: "Préparation",
+      downloadPath: "",
+      downloadOutputPath: "",
+      status: "",
+      jobPercent: 0,
+    }),
+  setDownloadProgress: (downloadStage, jobPercent) =>
+    set({ downloadState: "loading", downloadStage, jobPercent }),
+  finishDownload: (ok, status, downloadPath = "", downloadOutputPath = "") =>
+    set({
+      downloadState: ok ? "success" : "error",
+      status,
+      downloadPath,
+      downloadOutputPath,
+      jobPercent: ok ? 100 : 0,
+    }),
+  addHistory: (entry) =>
+    set((state) => {
+      const history = [
+        entry,
+        ...state.history.filter((item) => item.outputPath !== entry.outputPath),
+      ].slice(0, 50);
+      writeHistory(history);
+      return { history };
+    }),
+  removeHistory: (id) =>
+    set((state) => {
+      const history = state.history.filter((entry) => entry.id !== id);
+      writeHistory(history);
+      return { history };
+    }),
+  resetDownload: () =>
+    set({
+      downloadState: "idle",
+      downloadStage: "",
+      downloadPath: "",
+      downloadOutputPath: "",
+      status: "",
+      jobPercent: 0,
+    }),
   setSelectedPresetId: (selectedPresetId) => set({ selectedPresetId }),
   setExportFullVideo: (exportFullVideo) => set({ exportFullVideo }),
   go: (screen) => {
@@ -77,7 +188,18 @@ export const useDollytStore = create<DollytState>((set) => ({
   },
   goHome: () => {
     void releasePreviewCache().catch(() => {});
-    set({ screen: "home", video: null, storyboard: null, status: "", jobPercent: 0 });
+    set({
+      screen: "home",
+      url: "",
+      video: null,
+      storyboard: null,
+      status: "",
+      jobPercent: 0,
+      downloadState: "idle",
+      downloadStage: "",
+      downloadPath: "",
+      downloadOutputPath: "",
+    });
   },
   goEditor: () => {
     if (EDITOR_QUARANTINED) return;

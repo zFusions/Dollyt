@@ -8,6 +8,8 @@ use crate::storyboard::{self, StoryboardInfo};
 use crate::url;
 use crate::ytdlp::{self, DownloadResult, VideoInfo};
 use serde::Serialize;
+use std::path::Path;
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, State};
@@ -100,6 +102,37 @@ pub async fn load_video(raw_url: String) -> Result<LoadVideoResponse, String> {
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn reveal_file(path: String) -> Result<(), String> {
+    let file = Path::new(&path);
+    if !file.is_file() {
+        return Err("Le fichier exporté est introuvable.".into());
+    }
+    let settings = settings::load().map_err(|e| e.to_string())?;
+    let export_root = Path::new(&settings.export_dir)
+        .canonicalize()
+        .map_err(|e| format!("Dossier d’export inaccessible : {e}"))?;
+    let canonical_file = file
+        .canonicalize()
+        .map_err(|e| format!("Fichier exporté inaccessible : {e}"))?;
+    if !canonical_file.starts_with(&export_root) {
+        return Err("Le fichier doit se trouver dans le dossier d’export configuré.".into());
+    }
+    let result = if cfg!(target_os = "windows") {
+        Command::new("explorer.exe")
+            .arg(format!("/select,{}", canonical_file.display()))
+            .spawn()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open").args(["-R", &path]).spawn()
+    } else {
+        let parent = file
+            .parent()
+            .ok_or_else(|| "Dossier de sortie introuvable.".to_string())?;
+        Command::new("xdg-open").arg(parent).spawn()
+    };
+    result.map(|_| ()).map_err(|error| error.to_string())
 }
 
 /// Preview fichier local en arrière-plan (ne bloque pas l’UI).
