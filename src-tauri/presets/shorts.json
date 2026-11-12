@@ -1,0 +1,16 @@
+{
+  "id": "shorts",
+  "name": "YouTube Shorts",
+  "container": "mp4",
+  "videoCodec": "libx264",
+  "audioCodec": "aac",
+  "crf": 18,
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "crop": "center",
+  "audioBitrateKbps": 192,
+  "videoMaxBitrateKbps": 8000,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "MP4 vertical pour YouTube Shorts. 1080×1920, débit cible 8 Mbps (recommandation YouTube)."
+}

@@ -1,0 +1,109 @@
+/* Tokens Dollyt v1 — fond grain/safelight, accent rouge éditeur. */
+@layer tokens {
+  :root {
+    color-scheme: dark;
+    --safelight: #e03a1e;
+    --ground: #0a0a0a;
+    --surface-1: #111111;
+    --surface-2: #191919;
+    --surface-3: #222222;
+    --float: #161616;
+    --thumb: #303030;
+    --hover: rgb(255 255 255 / 0.07);
+    --press: rgb(255 255 255 / 0.11);
+    --sel: rgb(255 255 255 / 0.09);
+    --pick: rgb(255 255 255 / 0.15);
+    --pick-ring: rgb(255 255 255 / 0.26);
+    --line: rgb(255 255 255 / 0.08);
+    --edge: #6e6e6e;
+    --fg: #ededed;
+    --fg-2: #c2c2c2;
+    --fg-3: #a8a8a8;
+    --fg-disabled: #6a6a6a;
+    --on-fg: #0a0a0a;
+    --accent: var(--safelight);
+    --on-accent: #ffffff;
+    --accent-text: var(--safelight);
+    --accent-ring: rgb(224 58 30 / 0.45);
+    --focus: #f5f5f5;
+    --ok: #4ade80;
+    --info: #60a5fa;
+    --attention: #fb923c;
+    --warn: #fbbf24;
+    --err: #f87171;
+    --tint-pct: 14%;
+    --scrollbar: rgb(255 255 255 / 0.18);
+
+    --r-pill: 999px;
+    --r-xl: 22px;
+    --r-lg: 16px;
+    --r-md: 12px;
+    --r-sm: 10px;
+    --r-xs: 6px;
+    --h-lg: 40px;
+    --h-md: 34px;
+    --h-sm: 28px;
+    --h-xs: 22px;
+    --row-h: 56px;
+    --page-px: clamp(20px, 3vw, 32px);
+    --page-pt: clamp(20px, 2.5vh, 28px);
+    --page-gap: 20px;
+    --shell-pad: 0 8px 8px 0;
+    --shell-gap: 0;
+
+    --font-ui: "Instrument Sans", "Segoe UI Variable Text", "Segoe UI", system-ui,
+      sans-serif;
+    --font-code: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    --fs-micro: 11px;
+    --fs-meta: 12px;
+    --fs-small: 13px;
+    --fs-body: 14px;
+    --fs-section: 16px;
+    --fs-title: 24px;
+    --lh-body: 1.5;
+
+    --shadow-thumb: 0 1px 2px rgb(0 0 0 / 0.5);
+
+    --dur-fast: 140ms;
+    --dur-base: 200ms;
+    --dur-slow: 320ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --spring: linear(
+      0,
+      0.051,
+      0.172,
+      0.327,
+      0.489,
+      0.64,
+      0.769,
+      0.873,
+      0.952,
+      1.006,
+      1.039,
+      1.057,
+      1.063,
+      1.061,
+      1.054,
+      1.044,
+      1.034,
+      1.024,
+      1.016,
+      1.009,
+      1.004,
+      1,
+      0.998,
+      0.997,
+      0.996,
+      0.996,
+      0.997,
+      0.997,
+      0.998,
+      0.998,
+      0.999,
+      0.999,
+      1
+    );
+    --dur-spring: 520ms;
+    --press-scale: 0.95;
+  }
+}

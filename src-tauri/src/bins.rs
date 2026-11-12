@@ -1,5 +1,5 @@
 use crate::error::{DollytError, Result};
-use serde::Deserialize;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,6 +10,9 @@ use std::sync::OnceLock;
 use std::os::windows::process::CommandExt;
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+const PINNED_YTDLP_TAG: &str = "2026.10.26";
+const PINNED_YTDLP_EXE_SHA256: &str =
+    "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d";
 
 #[derive(Clone, Debug)]
 pub struct ToolPaths {
@@ -26,6 +29,38 @@ pub fn tools() -> &'static ToolPaths {
     TOOLS
         .get()
         .expect("binaires non initialisés : ensure_tools doit être appelé au démarrage")
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YtdlpUpdateResult {
+    pub already_latest: bool,
+}
+
+pub fn ensure_ytdlp_only() -> Result<()> {
+    let dir = bin_dir();
+    fs::create_dir_all(&dir)?;
+    let ytdlp = dir.join("yt-dlp.exe");
+    download_ytdlp_release(&ytdlp)?;
+    Ok(())
+}
+
+pub fn update_ytdlp_manual() -> Result<YtdlpUpdateResult> {
+    fs::create_dir_all(bin_dir())?;
+    let dest = bin_dir().join("yt-dlp.exe");
+    let expected = latest_ytdlp_exe_hash()?;
+    if dest.exists() {
+        let current = file_sha256_hex(&dest)?;
+        if current == expected {
+            return Ok(YtdlpUpdateResult {
+                already_latest: true,
+            });
+        }
+    }
+    ensure_ytdlp_only()?;
+    Ok(YtdlpUpdateResult {
+        already_latest: false,
+    })
 }
 
 pub fn ensure_tools() -> Result<()> {
@@ -86,67 +121,27 @@ fn bootstrap_tool(name: &str, dest: &Path) -> Result<PathBuf> {
     Ok(dest.to_path_buf())
 }
 
-#[derive(Deserialize)]
-struct GhRelease {
-    tag_name: String,
-    assets: Vec<GhAsset>,
+fn latest_ytdlp_exe_hash() -> Result<String> {
+    Ok(PINNED_YTDLP_EXE_SHA256.to_string())
 }
 
-#[derive(Deserialize)]
-struct GhAsset {
-    name: String,
-    browser_download_url: String,
+fn file_sha256_hex(path: &Path) -> Result<String> {
+    let bytes = fs::read(path)?;
+    Ok(hex::encode(Sha256::digest(&bytes)))
 }
 
 fn download_ytdlp_release(dest: &Path) -> Result<()> {
-    let body = ureq::get("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest")
-        .call()
-        .map_err(|e| DollytError::BinDownload(e.to_string()))?
-        .into_string()
-        .map_err(|e| DollytError::BinDownload(e.to_string()))?;
-    let release: GhRelease =
-        serde_json::from_str(&body).map_err(|e| DollytError::BinDownload(e.to_string()))?;
-    let tag = &release.tag_name;
-    let sums_url = release
-        .assets
-        .iter()
-        .find(|a| a.name == "SHA2-256SUMS")
-        .map(|a| a.browser_download_url.as_str())
-        .ok_or_else(|| DollytError::BinDownload("SHA2-256SUMS absent".into()))?;
-    let exe_url = format!("https://github.com/yt-dlp/yt-dlp/releases/download/{tag}/yt-dlp.exe");
-    let sums = fetch_text(sums_url)?;
-    let expected = parse_ytdlp_exe_hash(&sums)?;
+    let exe_url =
+        format!("https://github.com/yt-dlp/yt-dlp/releases/download/{PINNED_YTDLP_TAG}/yt-dlp.exe");
+    let expected = PINNED_YTDLP_EXE_SHA256;
     let tmp = dest.with_extension("tmp");
     download_bytes(&exe_url, &tmp)?;
-    verify_file_sha256(&tmp, &expected)?;
+    verify_file_sha256(&tmp, expected)?;
     if dest.exists() {
         fs::remove_file(dest)?;
     }
     fs::rename(&tmp, dest)?;
     Ok(())
-}
-
-fn parse_ytdlp_exe_hash(sums: &str) -> Result<String> {
-    for line in sums.lines() {
-        let line = line.trim();
-        let Some((hash, name)) = line.split_once("  ") else {
-            continue;
-        };
-        if name.trim() == "yt-dlp.exe" {
-            return Ok(hash.trim().to_lowercase());
-        }
-    }
-    Err(DollytError::BinDownload(
-        "hash yt-dlp.exe introuvable dans SHA2-256SUMS".into(),
-    ))
-}
-
-fn fetch_text(url: &str) -> Result<String> {
-    ureq::get(url)
-        .call()
-        .map_err(|e| DollytError::BinDownload(e.to_string()))?
-        .into_string()
-        .map_err(|e| DollytError::BinDownload(e.to_string()))
 }
 
 fn download_bytes(url: &str, dest: &Path) -> Result<()> {
@@ -177,10 +172,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_ytdlp_exe_hash_line() {
-        let sample =
-            "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d  yt-dlp.exe\n";
-        let hash = parse_ytdlp_exe_hash(sample).expect("hash");
+    fn uses_pinned_ytdlp_hash() {
+        let hash = latest_ytdlp_exe_hash().expect("hash");
         assert_eq!(
             hash,
             "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d"

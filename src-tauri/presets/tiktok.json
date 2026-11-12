@@ -1,0 +1,15 @@
+{
+  "id": "tiktok",
+  "name": "TikTok",
+  "container": "mp4",
+  "videoCodec": "libx264",
+  "audioCodec": "aac",
+  "crf": 20,
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "crop": "center",
+  "audioBitrateKbps": 128,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "MP4 vertical 1080×1920 pour TikTok. H.264, 30 fps. Pas de plafond Mbps imposé par Dollyt."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "youtube",
+  "name": "YouTube 16:9",
+  "container": "mp4",
+  "videoCodec": "libx264",
+  "audioCodec": "aac",
+  "crf": 16,
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "crop": "none",
+  "audioBitrateKbps": 192,
+  "videoMaxBitrateKbps": 8000,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "MP4 paysage 1920×1080 pour une vidéo YouTube classique. Débit cible 8 Mbps."
+}
