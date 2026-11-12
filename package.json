@@ -4,13 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/run-local-command.mjs vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked",
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "tauri": "tauri",
+    "tauri": "node scripts/run-local-command.mjs tauri",
     "test:e2e": "playwright test"
   },
   "dependencies": {

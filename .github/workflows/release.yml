@@ -56,7 +56,7 @@ jobs:
             ### Installation
             - Install the MSI or NSIS installer.
             - WebView2 Runtime is required.
-            - FFmpeg, ffprobe and Deno must be available on PATH on first launch.
+            - On first launch, FFmpeg, ffprobe and Deno are downloaded from pinned official releases and verified automatically.
 
             See [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details.
           releaseDraft: true
