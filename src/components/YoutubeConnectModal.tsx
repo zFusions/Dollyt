@@ -40,6 +40,8 @@ export function YoutubeConnectModal({ onDone }: Props) {
       devFps: null,
       devAudioBitrateKbps: null,
       devX264Preset: "",
+      autoUpdateApp: false,
+      ignoredUpdateVersion: null,
     };
     await saveSettings({
       ...base,
