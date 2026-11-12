@@ -83,7 +83,7 @@ export function DownloadView() {
   function newClip() {
     setRange(0, 7);
     resetDownload();
-    go("home");
+    goHome();
   }
 
   async function openOutputFile() {
@@ -135,7 +135,7 @@ export function DownloadView() {
                 </button>
                 <button type="button" className="btn btn-sm" onClick={goHome}>
                   <ActionIcon name="home" />
-                  {t("launch")}
+                  {t("newLink")}
                 </button>
                 <button
                   type="button"
@@ -173,7 +173,7 @@ export function DownloadView() {
               </button>
               <button type="button" className="btn btn-sm" onClick={goHome}>
                 <ActionIcon name="home" />
-                {t("launch")}
+                {t("newLink")}
               </button>
             </div>
           </section>
