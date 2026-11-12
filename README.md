@@ -1,46 +1,125 @@
 # Dollyt
 
-Dollyt est une application Windows open source fonctionnelle. Elle télécharge une vidéo YouTube, ou un extrait, en haute qualité, pour un montage TikTok, Reels ou Shorts.
+> Desktop YouTube clip exporter for Windows.
 
-Flux prévu : coller un lien, prévisualiser avec le son et image par image, régler l'entrée et la sortie, choisir un preset, exporter.
+Dollyt turns a YouTube URL into a local video clip or a full export. It provides
+local preview, timeline selection, reusable export presets, FFmpeg encoding,
+history and a French/English interface.
 
-## Non-objectifs v1
+<!-- Future hero image: docs/assets/dollyt-hero.png -->
 
-Autres plateformes que YouTube, upscale, éditeur de montage complet, macOS, Linux, comptes utilisateur, télémétrie, cloud.
+## Features
 
-## État
+- YouTube metadata and local preview.
+- Precise start/end selection.
+- Presets for TikTok, Reels, Shorts, YouTube and X.
+- FFmpeg export with optional hardware encoding.
+- Persistent local settings and export history.
+- Reveal an exported file in Windows Explorer.
+- Offline Dino loading screen and reduced-motion support.
+- No Dollyt telemetry or cloud upload.
 
-La version actuelle fournit l'accueil, la récupération YouTube, la preview locale, les presets, les réglages, la file et l'export FFmpeg. L'éditeur complet reste volontairement désactivé et isolé dans `src/quarantine`.
+## Screenshots
 
-## Stack prévue
+Screenshots are intentionally left as placeholders until the public UI capture
+set is prepared.
 
-Tauri 2, Rust stable, TypeScript, Vite, React, Tailwind CSS 4 avec des tokens propres au projet. Windows 10 version 1809 ou plus récente, et Windows 11, en x64, avec WebView2.
+- `docs/assets/dollyt-home.png`
+- `docs/assets/dollyt-editor.png`
+- `docs/assets/dollyt-settings.png`
 
-yt-dlp, FFmpeg et Deno ne sont pas versionnés. Au premier lancement, l'application utilise les outils disponibles dans le PATH ou télécharge yt-dlp depuis une release épinglée, puis vérifie son SHA-256 avant exécution. FFmpeg et Deno doivent être installés séparément pour le moment.
+## Technology
 
-## Privacy
+- Tauri 2
+- Rust 2024
+- React 19 and TypeScript
+- Vite 8
+- FFmpeg, ffprobe, Deno and yt-dlp
 
-Dollyt n'a pas de télémétrie et n'envoie pas les vidéos vers un serveur Dollyt.
+## Requirements
 
-Le réseau se limite à :
+- Windows 10 version 1809 or later, or Windows 11 (x64).
+- WebView2 Runtime.
+- Rust stable and the Tauri prerequisites for source builds.
+- Node.js and npm.
+- FFmpeg, ffprobe and Deno available on `PATH` for the first setup.
 
-- YouTube et googlevideo, pour les métadonnées, la preview et le téléchargement ;
-- les releases GitHub, pour les mises à jour de l'application et de yt-dlp ;
-- les sources officielles des binaires yt-dlp, FFmpeg et Deno.
+yt-dlp is downloaded from an official pinned GitHub release and verified with
+SHA-256 before use. FFmpeg, ffprobe and Deno are currently bootstrapped from
+the system `PATH`; production packaging should provide verified, pinned copies.
 
-Les journaux restent sur la machine, dans `%LOCALAPPDATA%\Dollyt\logs`. Une URL signée, un cookie ou un secret n'y est pas écrit.
+## Installation
 
-## Disclaimer
+Download the Windows installer from the project's releases page when one is
+published. The initial V1 installers are not code-signed yet; Windows
+SmartScreen may display a warning until a signing certificate is configured.
+User settings and history are stored outside the install
+directory in `%LOCALAPPDATA%\Dollyt`.
 
-Dollyt sert à travailler un contenu dont vous avez les droits. Le projet est indépendant et n'est pas affilié à YouTube. Il ne contourne ni DRM ni protection anti-bot.
+## Build from source
 
-Les demandes de retrait sont dans [DMCA.md](DMCA.md).
+```powershell
+npm install
+npm run typecheck
+npm run build
+npm run tauri dev
+```
 
-## Licence
+For a release build:
 
-MIT. Voir [LICENSE](LICENSE).
+```powershell
+npm run tauri build
+```
 
-## Documentation
+The generated executable and installer are written below
+`src-tauri\target\release\`.
 
-- [docs/DESIGN.md](docs/DESIGN.md)
-- [docs/MILESTONES.md](docs/MILESTONES.md)
+## Usage
+
+1. Paste a YouTube URL.
+2. Choose a preset and select a range.
+3. Export the clip.
+4. Open the result from the completion screen or the History page.
+
+Dollyt supports French and English. The first launch follows the system
+language when it is supported; a manual choice is persisted locally.
+
+## Architecture
+
+The React frontend owns navigation, transient editor state and the local
+history view. Tauri commands provide a narrow boundary to the Rust backend.
+Rust validates YouTube URLs, invokes yt-dlp, performs FFmpeg processing and
+emits progress events. Settings and presets live in
+`%LOCALAPPDATA%\Dollyt`; temporary previews and filmstrips live in the user
+temporary directory.
+
+See [docs/INFRA.md](docs/INFRA.md) for the current data-flow map.
+
+## Development
+
+```powershell
+npm run typecheck
+npm run build
+npm run test:e2e
+cargo test --manifest-path src-tauri\Cargo.toml --locked
+cargo clippy --manifest-path src-tauri\Cargo.toml -- -D warnings
+cargo fmt --manifest-path src-tauri\Cargo.toml -- --check
+```
+
+## Privacy and legal notice
+
+Dollyt does not provide a Dollyt server, telemetry or account system. Network
+traffic is made to YouTube/googlevideo for media work and GitHub for the
+pinned yt-dlp release. Use the software only with content you are allowed to
+download and process. Dollyt is not affiliated with YouTube and does not
+bypass DRM.
+
+## Contributing
+
+Keep changes focused, add a regression test for behavior changes, and run the
+validation commands above before opening a pull request. Do not commit
+credentials, cookies, local paths or generated build artifacts.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

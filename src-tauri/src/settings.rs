@@ -2,7 +2,7 @@ use crate::error::Result;
 use crate::presets::Preset;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -10,6 +10,8 @@ pub struct Settings {
     pub export_dir: String,
     pub name_template: String,
     pub hardware_encode: bool,
+    #[serde(default)]
+    pub auto_update_ytdlp: bool,
     /// firefox uniquement (Chrome/Edge verrouillent la base sous Windows).
     #[serde(default)]
     pub ytdlp_cookies_browser: String,
@@ -45,6 +47,7 @@ impl Default for Settings {
             export_dir: String::new(),
             name_template: "{titre}_depuis-{debut}s_jusqu-a-{fin}s".to_string(),
             hardware_encode: false,
+            auto_update_ytdlp: false,
             ytdlp_cookies_browser: String::new(),
             ytdlp_cookies_file: String::new(),
             youtube_onboarding_done: true,
@@ -154,6 +157,7 @@ pub fn load() -> Result<Settings> {
         settings.export_dir.clear();
         save(&settings)?;
     }
+
     Ok(settings)
 }
 
@@ -161,7 +165,18 @@ pub fn save(settings: &Settings) -> Result<()> {
     let dir = dollyt_data_dir();
     fs::create_dir_all(&dir)?;
     let json = serde_json::to_string_pretty(settings)?;
-    fs::write(settings_path(), json)?;
+    let path = settings_path();
+    let tmp = path.with_extension("json.tmp");
+    {
+        let mut file = fs::File::create(&tmp)?;
+        use std::io::Write;
+        file.write_all(json.as_bytes())?;
+        file.sync_all()?;
+    }
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    fs::rename(tmp, path)?;
     Ok(())
 }
 
@@ -182,7 +197,12 @@ pub fn resolve_export_path(
             .map(|s| s.export_dir)
             .unwrap_or_else(|_| default_export_dir()),
     );
-    dir.join(format!("{file}.{ext}"))
+    let filename = Path::new(&file)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("clip");
+    dir.join(format!("{filename}.{ext}"))
 }
 
 fn sanitize_filename(input: &str) -> String {
@@ -198,5 +218,17 @@ fn sanitize_filename(input: &str) -> String {
         "clip".into()
     } else {
         out.chars().take(80).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_path_keeps_template_inside_export_directory() {
+        let path = resolve_export_path(r"..\outside\{titre}", "title", 1.0, 2.0, "mp4");
+        assert_eq!(path.file_name().and_then(|v| v.to_str()), Some("title.mp4"));
+        assert!(!path.to_string_lossy().contains("outside"));
     }
 }

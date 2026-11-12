@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify source
+        shell: pwsh
+        run: |
+          npm run typecheck
+          npm run build
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+          cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Build and publish installers
+        uses: tauri-apps/tauri-action@v0.5.20
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          releaseName: "Dollyt ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          releaseBody: |
+            ## Dollyt ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+            Windows x64 installers for the first public release.
+
+            ### Installation
+            - Install the MSI or NSIS installer.
+            - WebView2 Runtime is required.
+            - FFmpeg, ffprobe and Deno must be available on PATH on first launch.
+
+            See [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details.
+          releaseDraft: true
+          prerelease: false

@@ -29,6 +29,7 @@ export function YoutubeConnectModal({ onDone }: Props) {
       exportDir: "",
       nameTemplate: "{titre}_{debut}-{fin}",
       hardwareEncode: false,
+      autoUpdateYtdlp: false,
       ytdlpCookiesBrowser: "",
       ytdlpCookiesFile: "",
       youtubeOnboardingDone: false,

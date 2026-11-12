@@ -140,6 +140,15 @@
     -webkit-mask-position: center;
     -webkit-mask-size: contain;
   }
+  .rail-icon-image {
+    display: block;
+    width: 20px;
+    height: 20px;
+    flex: none;
+    object-fit: contain;
+    filter: brightness(0) invert(0.68);
+    transition: filter var(--dur-fast) var(--ease-out);
+  }
   .rail-icon-svg {
     display: block;
     flex: none;
@@ -148,8 +157,14 @@
   .rail-item:hover:not(:disabled) .rail-icon {
     color: var(--fg-2);
   }
+  .rail-item:hover:not(:disabled) .rail-icon-image {
+    filter: brightness(0) invert(0.82);
+  }
   .rail-item[aria-current="page"] .rail-icon {
     color: var(--fg);
+  }
+  .rail-item[aria-current="page"] .rail-icon-image {
+    filter: brightness(0) invert(1);
   }
   .rail-label {
     min-width: 0;

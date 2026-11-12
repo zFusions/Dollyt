@@ -23,7 +23,6 @@ export function DevModeDialog({ open, onCancel, onConfirm }: Props) {
         aria-labelledby="dev-gate-title"
         className="set-dev-gate-card"
       >
-        <p className="set-dev-gate-kicker meta">Dollyt · encodage</p>
         <h2 id="dev-gate-title" className="set-dev-gate-title">
           Mode développeur
         </h2>

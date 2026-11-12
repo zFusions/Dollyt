@@ -2,6 +2,7 @@ use crate::ffmpeg;
 use crate::log;
 use crate::presets;
 use crate::settings;
+use crate::storage;
 use crate::url;
 use crate::ytdlp;
 use serde::Serialize;
@@ -30,6 +31,7 @@ pub struct JobsState {
 }
 
 struct ActiveJob {
+    job_id: u64,
     cancel: Arc<AtomicBool>,
     child: Arc<Mutex<Option<Child>>>,
 }
@@ -49,6 +51,8 @@ pub struct JobFinished {
     pub job_id: u64,
     pub ok: bool,
     pub message: String,
+    pub output_path: Option<String>,
+    pub preview_path: Option<String>,
 }
 
 #[tauri::command]
@@ -62,7 +66,6 @@ pub fn cancel_job(state: State<'_, Arc<JobsState>>) -> Result<(), String> {
         kill_process_tree(child.id());
     }
     log::log_line("job annulé");
-    *guard = None;
     Ok(())
 }
 
@@ -75,12 +78,6 @@ pub fn start_cut_job(
     end_secs: f64,
     preset_id: String,
 ) -> Result<u64, String> {
-    {
-        let active = state.active.lock().map_err(|e| e.to_string())?;
-        if active.is_some() {
-            return Err("Un job est déjà en cours".into());
-        }
-    }
     let job_id = {
         let mut next = state.next_id.lock().map_err(|e| e.to_string())?;
         let id = *next;
@@ -91,7 +88,11 @@ pub fn start_cut_job(
     let child_slot = Arc::new(Mutex::new(None::<Child>));
     {
         let mut active = state.active.lock().map_err(|e| e.to_string())?;
+        if active.is_some() {
+            return Err("Un job est déjà en cours".into());
+        }
         *active = Some(ActiveJob {
+            job_id,
             cancel: Arc::clone(&cancel),
             child: Arc::clone(&child_slot),
         });
@@ -110,9 +111,14 @@ pub fn start_cut_job(
             end_secs,
             &preset_id,
         );
-        let (ok, message) = match result {
-            Ok(msg) => (true, msg),
-            Err(e) => (false, e),
+        let (ok, message, output_path, preview_path) = match result {
+            Ok((path, preview)) => (
+                true,
+                "Extrait exporté.".to_string(),
+                Some(path),
+                Some(preview),
+            ),
+            Err(e) => (false, e, None, None),
         };
         let _ = app2.emit(
             "job-finished",
@@ -120,9 +126,13 @@ pub fn start_cut_job(
                 job_id,
                 ok,
                 message,
+                output_path,
+                preview_path,
             },
         );
-        if let Ok(mut active) = state2.active.lock() {
+        if let Ok(mut active) = state2.active.lock()
+            && active.as_ref().is_some_and(|job| job.job_id == job_id)
+        {
             *active = None;
         }
     });
@@ -140,7 +150,7 @@ fn run_cut_job(
     start_secs: f64,
     end_secs: f64,
     preset_id: &str,
-) -> Result<String, String> {
+) -> Result<(String, String), String> {
     emit(app, job_id, "validation", 5)?;
     let url = url::validate_youtube_url(raw_url).map_err(|e| e.to_string())?;
     if cancel.load(Ordering::SeqCst) {
@@ -186,12 +196,13 @@ fn run_cut_job(
         &app_settings,
     )
     .map_err(|e| e.to_string())?;
+    let preview_path = storage::copy_download_preview(&cut.path).map_err(|e| e.to_string())?;
     emit(app, job_id, "done", 100)?;
     log::log_line(&format!(
         "job {job_id} ok preset={preset_id} download_ms={} encode_ms={}",
         download.elapsed_ms, cut.elapsed_ms
     ));
-    Ok(format!("Source: {}\nExport: {}", download.path, cut.path))
+    Ok((cut.path, preview_path))
 }
 
 fn emit(app: &AppHandle, job_id: u64, stage: &str, percent: u8) -> Result<(), String> {

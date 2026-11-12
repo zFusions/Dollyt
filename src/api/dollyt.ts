@@ -4,6 +4,7 @@ export type VideoInfo = {
   title: string;
   durationSecs: number;
   previewUrl: string;
+  thumbnailUrl?: string | null;
   /** Fichier local (prioritaire pour la lecture). */
   previewLocalUrl?: string | null;
   formatId: string;
@@ -32,6 +33,7 @@ export type Settings = {
   exportDir: string;
   nameTemplate: string;
   hardwareEncode: boolean;
+  autoUpdateYtdlp: boolean;
   /** firefox | "" */
   ytdlpCookiesBrowser: string;
   ytdlpCookiesFile: string;
@@ -66,6 +68,7 @@ const MOCK: VideoInfo = {
   title: "Me at the zoo (mock)",
   durationSecs: 19,
   previewUrl: "",
+  thumbnailUrl: "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg",
   formatId: "18",
   exportFormatId: "308+251",
   previewFps: 30,
@@ -220,4 +223,9 @@ export async function pickCookiesFile(): Promise<string | null> {
 export async function pickExportDirectory(): Promise<string | null> {
   if (!isTauri()) return null;
   return invoke<string | null>("pick_export_directory");
+}
+
+export async function revealFile(path: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("reveal_file", { path });
 }

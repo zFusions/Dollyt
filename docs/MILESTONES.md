@@ -12,7 +12,7 @@ Terminé (GO). Rapport : [plans/M0-report.md](plans/M0-report.md).
 
 ## M1 — Moteur
 
-En cours. Plan : [plans/M1.md](plans/M1.md), rapport : [plans/M1-report.md](plans/M1-report.md). UI Chambre noire amorcée (accueil + éditeur minimal).
+Infra clôturée (BYPASS). Plan : [plans/M1.md](plans/M1.md), rapport : [plans/M1-report.md](plans/M1-report.md), inventaire : [INFRA.md](INFRA.md). Shell UI minimal conservé ; polish DA reporté à M5.
 
 ## M2 — Éditeur et timeline
 

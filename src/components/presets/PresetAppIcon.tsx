@@ -31,12 +31,11 @@ export function PresetAppIcon({ presetId, className = "" }: Props) {
       );
     case "shorts":
       return (
-        <svg className={cn} viewBox="0 0 24 24" aria-hidden>
-          <path
-            fill="currentColor"
-            d="M17.3 7.2 14.1 5.4a3.1 3.1 0 0 0-4.2 1.1 3.1 3.1 0 0 0 1.1 4.2l1.2.7-1.2.7a3.1 3.1 0 0 0-1.1 4.2 3.1 3.1 0 0 0 4.2 1.1l3.2-1.8a3.9 3.9 0 0 0 0-6.8ZM12.3 8a.8.8 0 0 1 1.1-.3l3.2 1.8a1.5 1.5 0 0 1 0 2.6l-3.2 1.8a.8.8 0 1 1-.8-1.4l2.4-1.4-2.4-1.4a.8.8 0 0 1-.3-1.1Zm-1.6 6.2a.8.8 0 0 1 1.1-.3l2.4 1.4-2.4 1.4a.8.8 0 1 1-.8-1.4l1.2-.7-1.2-.7a.8.8 0 0 1-.3-1.1Z"
-          />
-        </svg>
+        <span
+          className={`${cn} preset-app-icon--shorts`}
+          role="img"
+          aria-label="YouTube Shorts"
+        />
       );
     case "youtube":
       return (

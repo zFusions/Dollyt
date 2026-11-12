@@ -39,8 +39,6 @@ fn push_ytdlp_defaults(cmd: &mut Command) {
         cmd.arg("--js-runtimes");
         cmd.arg(format!("deno:{}", deno.display()));
     }
-    cmd.arg("--extractor-args");
-    cmd.arg("youtube:player_client=tv_embedded,ios,web");
     if let Ok(s) = crate::settings::load() {
         if let Some(path) = crate::settings::ytdlp_cookies_file(&s) {
             cmd.arg("--cookies");
