@@ -42,11 +42,12 @@ jobs:
           cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 
       - name: Build and publish installers
-        uses: tauri-apps/tauri-action@v0.6.2
+        uses: tauri-apps/tauri-action@v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
+          uploadUpdaterSignatures: false
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseName: "Dollyt ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           releaseBody: |
@@ -55,7 +56,7 @@ jobs:
             Windows x64 installers for the first public release.
 
             ### Installation
-            - Install the MSI or NSIS installer.
+            - Install the setup.exe installer.
             - WebView2 Runtime is required.
             - On first launch, FFmpeg, ffprobe and Deno are downloaded from pinned official releases and verified automatically.
 
