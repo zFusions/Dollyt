@@ -42,7 +42,7 @@ fn default_export_preset_id() -> String {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            export_dir: default_export_dir(),
+            export_dir: String::new(),
             name_template: "{titre}_depuis-{debut}s_jusqu-a-{fin}s".to_string(),
             hardware_encode: false,
             ytdlp_cookies_browser: String::new(),
@@ -149,7 +149,12 @@ pub fn load() -> Result<Settings> {
         return Ok(s);
     }
     let raw = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&raw)?)
+    let mut settings: Settings = serde_json::from_str(&raw)?;
+    if settings.export_dir == default_export_dir() {
+        settings.export_dir.clear();
+        save(&settings)?;
+    }
+    Ok(settings)
 }
 
 pub fn save(settings: &Settings) -> Result<()> {

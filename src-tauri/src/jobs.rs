@@ -148,6 +148,9 @@ fn run_cut_job(
     }
     let preset = presets::get_builtin(preset_id).map_err(|e| e.to_string())?;
     let app_settings = settings::load().map_err(|e| e.to_string())?;
+    if app_settings.export_dir.trim().is_empty() {
+        return Err("Choisis d’abord un dossier de sortie dans Paramètres.".into());
+    }
     let info = ytdlp::fetch_video_info(&url).map_err(|e| e.to_string())?;
     let dl_format = if preset_id == "quality-max" {
         ytdlp::resolve_export_format(&url, "").map_err(|e| e.to_string())?

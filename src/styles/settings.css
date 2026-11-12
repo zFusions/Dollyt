@@ -289,6 +289,16 @@
       inset 0 0 0 1px var(--line),
       0 0 0 2px var(--accent-ring);
   }
+  .set-path-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+  }
+  .set-path-control .field {
+    flex: 1 1 auto;
+  }
   .set-value {
     color: var(--fg-2);
     font-size: var(--fs-small);

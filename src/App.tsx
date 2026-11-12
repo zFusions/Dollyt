@@ -11,6 +11,7 @@ import { HomeView } from "./views/HomeView";
 import { PresetsView } from "./views/PresetsView";
 import { QueueView } from "./views/QueueView";
 import { SettingsView } from "./views/SettingsView";
+import { currentLocale } from "./i18n";
 
 function App() {
   const screen = useDollytStore((s) => s.screen);
@@ -22,6 +23,10 @@ function App() {
   const goHome = useDollytStore((s) => s.goHome);
   const setSelectedPresetId = useDollytStore((s) => s.setSelectedPresetId);
   const { shownScreen, viewPhase } = useDeferredScreen(screen);
+
+  useEffect(() => {
+    document.documentElement.lang = currentLocale();
+  }, []);
 
   useEffect(() => {
     getSettings()

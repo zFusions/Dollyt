@@ -1,7 +1,13 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { listPresets, loadVideo, startCutJob, type Preset } from "../api/dollyt";
+import {
+  getSettings,
+  listPresets,
+  loadVideo,
+  startCutJob,
+  type Preset,
+} from "../api/dollyt";
 import { DinoLoader } from "../components/DinoLoader";
 import { Switch } from "../components/Toggle";
 import { WindowControls } from "../components/WindowChrome";
@@ -10,6 +16,7 @@ import { presetShortLabel } from "../lib/presetsUi";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { validateYoutubeUrl } from "../lib/validateUrl";
 import { useDollytStore } from "../store";
+import { t } from "../i18n";
 
 export function HomeView() {
   const url = useDollytStore((s) => s.url);
@@ -72,6 +79,13 @@ export function HomeView() {
     setVideo(null);
     setStoryboard(null);
     try {
+      const settings = await getSettings();
+      if (!settings?.exportDir.trim()) {
+        setError(t("chooseOutput"));
+        go("settings");
+        setBusy(false);
+        return;
+      }
       const { video: loaded } = await loadVideo(url);
       const fps = loaded.previewFps ?? 30;
       const dur = loaded.durationSecs || 0;
@@ -125,7 +139,7 @@ export function HomeView() {
           ) : null}
           <div className="home-nav-end">
             <button type="button" className="home-ghost" onClick={focusUrl}>
-              Nouveau lien
+              {t("newLink")}
             </button>
             <button
               type="button"
@@ -133,19 +147,19 @@ export function HomeView() {
               disabled={busy}
               onClick={submitDownload}
             >
-              Lancer
+              {t("launch")}
             </button>
           </div>
         </div>
         <nav className="home-nav-mid" aria-label="Navigation">
           <button type="button" onClick={() => go("presets")}>
-            Presets
+            {t("presets")}
           </button>
           <button type="button" onClick={() => go("settings")}>
-            Paramètres
+            {t("settings")}
           </button>
           <button type="button" onClick={() => go("queue")}>
-            File
+            {t("queue")}
           </button>
         </nav>
         {isTauri() ? (
@@ -156,11 +170,10 @@ export function HomeView() {
       <main className="home-main">
         <section className="home-intro" aria-labelledby="home-title">
           <h1 id="home-title" className="home-title home-title-lit">
-            De l&apos;URL YouTube à l&apos;extrait, sans friction
+            {t("homeTitle")}
           </h1>
           <p className="home-lead">
-            Colle un lien, choisis un preset, règle l&apos;extrait si tu veux, et
-            enregistre le fichier chez toi.
+            {t("homeLead")}
           </p>
 
           <form
@@ -175,7 +188,7 @@ export function HomeView() {
                 <div className="home-url-row">
                   <div className="home-composer-field">
                     <span className="home-field-mirror" aria-hidden>
-                      {url || "Colle ton lien YouTube"}
+                      {url || t("pasteUrl")}
                     </span>
                     <input
                       id="url-field"
@@ -188,7 +201,7 @@ export function HomeView() {
                         if (error) setError("");
                       }}
                       className="field home-field"
-                      placeholder="Colle ton lien YouTube"
+                      placeholder={t("pasteUrl")}
                       autoComplete="off"
                       autoFocus
                       disabled={busy}
@@ -209,14 +222,14 @@ export function HomeView() {
                       decoding="async"
                     />
                     <span className="home-submit-label">
-                      {busy ? "Export…" : "Télécharger"}
+                      {busy ? t("exporting") : t("download")}
                     </span>
                   </button>
                 </div>
                 <div className="home-composer-split" aria-hidden />
                 <div className="home-export-row">
                   <label className="home-preset-field">
-                    <span>Qualité</span>
+                    <span>{t("quality")}</span>
                     <CustomSelect
                       triggerClassName="home-preset-select mono"
                       value={selectedPresetId}
@@ -231,10 +244,10 @@ export function HomeView() {
                     />
                   </label>
                   <div className="home-mode-field">
-                    <span>Portée</span>
+                    <span>{t("range")}</span>
                     <div className="home-mode-control">
                       <span className="home-mode-label">
-                        {exportFullVideo ? "Vidéo entière" : "Extrait"}
+                        {exportFullVideo ? t("fullVideo") : t("clip")}
                       </span>
                       <Switch
                         checked={exportFullVideo}
@@ -251,7 +264,7 @@ export function HomeView() {
                 >
                   <div className="home-clip-row">
                     <label className="home-clip-field">
-                      <span>Début (s)</span>
+                      <span>{t("start")}</span>
                       <input
                         type="number"
                         min={0}
@@ -266,7 +279,7 @@ export function HomeView() {
                       />
                     </label>
                     <label className="home-clip-field">
-                      <span>Fin (s)</span>
+                      <span>{t("end")}</span>
                       <input
                         type="number"
                         min={0}
@@ -303,7 +316,7 @@ export function HomeView() {
 
           <p className="home-hint">
             <span className="home-local">
-              Tout reste sur ton PC, sans envoi vers un serveur Dollyt.
+              {t("savedLocally")}
             </span>
           </p>
 
