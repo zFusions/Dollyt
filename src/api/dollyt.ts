@@ -216,3 +216,8 @@ export async function pickCookiesFile(): Promise<string | null> {
   if (!isTauri()) return null;
   return invoke<string | null>("pick_cookies_file");
 }
+
+export async function pickExportDirectory(): Promise<string | null> {
+  if (!isTauri()) return null;
+  return invoke<string | null>("pick_export_directory");
+}

@@ -186,8 +186,8 @@
   }
   .preset-app-icon {
     flex: none;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     color: var(--fg-2);
   }
   .custom-select-option[data-selected] .preset-app-icon {

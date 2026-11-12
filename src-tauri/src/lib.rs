@@ -61,6 +61,7 @@ pub fn run() {
             youtube_session::close_youtube_login,
             youtube_session::probe_youtube_session,
             youtube_session::pick_cookies_file,
+            youtube_session::pick_export_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

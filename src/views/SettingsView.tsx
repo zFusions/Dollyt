@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   getSettings,
   saveSettings,
+  pickExportDirectory,
   updateYtdlp,
   type Settings,
 } from "../api/dollyt";
@@ -12,6 +13,7 @@ import { Panel, SettingRow } from "../components/ui/Panel";
 import { Switch } from "../components/Toggle";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useDollytStore } from "../store";
+import { t } from "../i18n";
 
 const DEFAULTS: Settings = {
   exportDir: "",
@@ -143,27 +145,45 @@ export function SettingsView() {
             onClick={onSave}
             disabled={busy}
           >
-            Enregistrer
+            {t("save")}
           </PrimaryButton>
         </div>
       </header>
 
       <section className="set-section">
-        <h2 className="set-heading">Export</h2>
+        <h2 className="set-heading">{t("export")}</h2>
         <Panel>
           <div className="set-group">
             <SettingRow
-              label="Dossier de sortie"
-              hint="Chemin complet ou dossier vide pour la valeur par défaut"
+              label={t("outputFolder")}
+              hint={t("outputHint")}
             >
-              <input
-                value={draft.exportDir}
-                onChange={(e) =>
-                  setDraft({ ...draft, exportDir: e.target.value })
-                }
-                className="field mono"
-                spellCheck={false}
-              />
+              <div className="set-path-control">
+                <input
+                  value={draft.exportDir}
+                  onChange={(e) =>
+                    setDraft({ ...draft, exportDir: e.target.value })
+                  }
+                  className="field mono"
+                  spellCheck={false}
+                  placeholder={t("noFolder")}
+                />
+                <PrimaryButton
+                  variant="default"
+                  className="btn-sm"
+                  onClick={() => {
+                    void pickExportDirectory()
+                      .then((path) => {
+                        if (path) {
+                          setDraft((current) => ({ ...current, exportDir: path }));
+                        }
+                      })
+                      .catch((error) => setMsg(String(error)));
+                  }}
+                >
+                  {t("browse")}
+                </PrimaryButton>
+              </div>
             </SettingRow>
             <SettingRow
               label="Nom des fichiers exportés"

@@ -47,9 +47,37 @@ fn push_ytdlp_defaults(cmd: &mut Command) {
             cmd.arg(path);
         } else if crate::settings::ytdlp_cookies_browser(&s.ytdlp_cookies_browser)
             == Some("firefox")
+            && firefox_profile_exists()
         {
             cmd.arg("--cookies-from-browser");
             cmd.arg("firefox");
+        }
+
+        fn firefox_profile_exists() -> bool {
+            let candidates = [
+                std::env::var_os("APPDATA")
+                    .map(std::path::PathBuf::from)
+                    .map(|p| p.join("Mozilla").join("Firefox").join("Profiles")),
+                std::env::var_os("LOCALAPPDATA")
+                    .map(std::path::PathBuf::from)
+                    .map(|p| {
+                        p.join("Packages")
+                            .join("Mozilla.Firefox_n80bbvh6b1yt2")
+                            .join("LocalCache")
+                            .join("Roaming")
+                            .join("Mozilla")
+                            .join("Firefox")
+                            .join("Profiles")
+                    }),
+            ];
+            candidates.into_iter().flatten().any(|profiles| {
+                let Ok(entries) = std::fs::read_dir(profiles) else {
+                    return false;
+                };
+                entries
+                    .flatten()
+                    .any(|entry| entry.path().join("cookies.sqlite").is_file())
+            })
         }
     }
 }
