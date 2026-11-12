@@ -1,5 +1,7 @@
 use crate::ffmpeg;
 use crate::log;
+use crate::presets;
+use crate::settings;
 use crate::url;
 use crate::ytdlp;
 use serde::Serialize;
@@ -71,6 +73,7 @@ pub fn start_cut_job(
     format_id: String,
     start_secs: f64,
     end_secs: f64,
+    preset_id: String,
 ) -> Result<u64, String> {
     {
         let active = state.active.lock().map_err(|e| e.to_string())?;
@@ -105,6 +108,7 @@ pub fn start_cut_job(
             &format_id,
             start_secs,
             end_secs,
+            &preset_id,
         );
         let (ok, message) = match result {
             Ok(msg) => (true, msg),
@@ -135,12 +139,21 @@ fn run_cut_job(
     format_id: &str,
     start_secs: f64,
     end_secs: f64,
+    preset_id: &str,
 ) -> Result<String, String> {
     emit(app, job_id, "validation", 5)?;
     let url = url::validate_youtube_url(raw_url).map_err(|e| e.to_string())?;
     if cancel.load(Ordering::SeqCst) {
         return Err("annulé".into());
     }
+    let preset = presets::get_builtin(preset_id).map_err(|e| e.to_string())?;
+    let app_settings = settings::load().map_err(|e| e.to_string())?;
+    let info = ytdlp::fetch_video_info(&url).map_err(|e| e.to_string())?;
+    let dl_format = if preset_id == "quality-max" {
+        ytdlp::resolve_export_format(&url, "").map_err(|e| e.to_string())?
+    } else {
+        ytdlp::resolve_export_format(&url, format_id).map_err(|e| e.to_string())?
+    };
     let app_dl = app.clone();
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
         let mapped = 20u8.saturating_add(((raw as u16).saturating_mul(48) / 100) as u8);
@@ -148,7 +161,7 @@ fn run_cut_job(
     });
     let download = ytdlp::download_section_cancellable(
         &url,
-        format_id,
+        &dl_format,
         start_secs,
         end_secs,
         3.0,
@@ -161,14 +174,21 @@ fn run_cut_job(
         return Err("annulé".into());
     }
     emit(app, job_id, "encode", 70)?;
-    let cut = ffmpeg::cut_exact_section(&download.path, start_secs, end_secs)
-        .map_err(|e| e.to_string())?;
+    let cut = ffmpeg::export_to_settings_path(
+        &download.path,
+        &info.title,
+        start_secs,
+        end_secs,
+        &preset,
+        &app_settings,
+    )
+    .map_err(|e| e.to_string())?;
     emit(app, job_id, "done", 100)?;
     log::log_line(&format!(
-        "job {job_id} ok download_ms={} cut_ms={}",
+        "job {job_id} ok preset={preset_id} download_ms={} encode_ms={}",
         download.elapsed_ms, cut.elapsed_ms
     ));
-    Ok(format!("MKV: {}\nMP4: {}", download.path, cut.path))
+    Ok(format!("Source: {}\nExport: {}", download.path, cut.path))
 }
 
 fn emit(app: &AppHandle, job_id: u64, stage: &str, percent: u8) -> Result<(), String> {

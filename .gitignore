@@ -1,4 +1,6 @@
 node_modules/
+test-results/
+playwright-report/
 dist/
 src-tauri/target/
 src-tauri/gen/
@@ -7,3 +9,4 @@ src-tauri/gen/
 .env.*
 
 # Scaffolds temporaires locaux (hors dépôt, si recréés à la racine parente)
+src/quarantine/

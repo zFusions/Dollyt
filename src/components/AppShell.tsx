@@ -1,25 +1,57 @@
 import type { ReactNode } from "react";
+import { AmbientBackdrop } from "./AmbientBackdrop";
+import { NavRail } from "./NavRail";
+import { WindowChrome } from "./WindowChrome";
+import type { ViewPhase } from "../hooks/useDeferredScreen";
+import type { Screen } from "../store";
 
-export function AppShell({ children }: { children: ReactNode }) {
+type Props = {
+  children: ReactNode;
+  screen: Screen;
+  shownScreen: Screen;
+  viewPhase: ViewPhase;
+  onNav: (s: Screen) => void;
+  editorEnabled: boolean;
+};
+
+export function AppShell({
+  children,
+  screen,
+  shownScreen,
+  viewPhase,
+  onNav,
+  editorEnabled,
+}: Props) {
+  const landing = shownScreen === "home";
+  const studio = shownScreen === "editor";
+  const shellClass = landing
+    ? "shell shell--home"
+    : studio
+      ? "shell shell--studio"
+      : "shell";
   return (
-    <div className="relative min-h-screen bg-bg text-text">
-      <Vignette />
-      <div className="room-halo" aria-hidden />
-      <div className="room-grain" aria-hidden />
-      <div className="relative z-10 mx-auto max-w-5xl px-4 py-6">{children}</div>
+    <div className="app">
+      {!landing ? <WindowChrome showTitle /> : null}
+      <AmbientBackdrop />
+      <div className={shellClass}>
+        {!landing ? (
+          <NavRail
+            screen={screen}
+            onNav={onNav}
+            editorEnabled={editorEnabled}
+            compact={studio}
+          />
+        ) : null}
+        <div className="stage">
+          <div className="scroll">
+            <div
+              className={`view-stage view-stage--${viewPhase}`}
+            >
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  );
-}
-
-function Vignette() {
-  return (
-    <div
-      className="pointer-events-none fixed inset-0"
-      style={{
-        background:
-          "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%)",
-      }}
-      aria-hidden
-    />
   );
 }

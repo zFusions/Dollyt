@@ -1,0 +1,96 @@
+@layer base {
+  html {
+    height: 100%;
+    background: var(--ground);
+  }
+  body,
+  #root {
+    height: 100%;
+    background: var(--ground);
+  }
+  #root {
+    position: relative;
+    overflow: clip;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    color: var(--fg);
+    background: transparent;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    scrollbar-color: var(--scrollbar) transparent;
+    caret-color: var(--accent-text);
+    accent-color: var(--accent);
+  }
+  input,
+  textarea,
+  select {
+    user-select: text;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent-text) 32%, transparent);
+    color: var(--fg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  ::placeholder {
+    color: var(--fg-3);
+    opacity: 1;
+  }
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+  .mono {
+    font-family: var(--font-code);
+    font-variant-numeric: tabular-nums;
+  }
+  .page-title {
+    font-size: var(--fs-title);
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    text-shadow:
+      0 0 24px rgb(255 255 255 / 0.06),
+      0 0 48px rgb(224 58 30 / 0.06);
+  }
+  .page-sub {
+    margin-top: 4px;
+    color: color-mix(in srgb, var(--fg-2) 90%, rgb(255 230 220));
+    text-wrap: pretty;
+    font-size: var(--fs-small);
+    text-shadow: 0 0 32px rgb(224 58 30 / 0.04);
+  }
+  .section-title {
+    font-size: var(--fs-section);
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .meta {
+    font-size: var(--fs-meta);
+    color: var(--fg-2);
+  }
+}
+
+@layer components {
+  .scroll {
+    overflow: auto;
+    scrollbar-width: thin;
+    scroll-behavior: smooth;
+  }
+  .page {
+    padding: var(--page-pt) var(--page-px) clamp(28px, 4vh, 40px);
+  }
+  .page:not(.set-page):not(.editor-page) {
+    max-width: 960px;
+  }
+  .page > header {
+    margin-bottom: var(--page-gap);
+  }
+}

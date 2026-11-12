@@ -1,6 +1,6 @@
 # Dollyt
 
-Dollyt est une application Windows open source. Elle télécharge une vidéo YouTube, ou un extrait, en haute qualité, pour un montage TikTok, Reels ou Shorts.
+Dollyt est une application Windows open source fonctionnelle. Elle télécharge une vidéo YouTube, ou un extrait, en haute qualité, pour un montage TikTok, Reels ou Shorts.
 
 Flux prévu : coller un lien, prévisualiser avec le son et image par image, régler l'entrée et la sortie, choisir un preset, exporter.
 
@@ -10,17 +10,17 @@ Autres plateformes que YouTube, upscale, éditeur de montage complet, macOS, Lin
 
 ## État
 
-Ce dépôt contient le socle documentaire. Le code de l'application n'est pas écrit. Le jalon M0, le spike de preview, n'a pas commencé. La suite est dans [docs/MILESTONES.md](docs/MILESTONES.md).
+La version actuelle fournit l'accueil, la récupération YouTube, la preview locale, les presets, les réglages, la file et l'export FFmpeg. L'éditeur complet reste volontairement désactivé et isolé dans `src/quarantine`.
 
 ## Stack prévue
 
 Tauri 2, Rust stable, TypeScript, Vite, React, Tailwind CSS 4 avec des tokens propres au projet. Windows 10 version 1809 ou plus récente, et Windows 11, en x64, avec WebView2.
 
-yt-dlp, FFmpeg et Deno ne sont pas versionnés. Au premier lancement, l'application les téléchargera dans `%LOCALAPPDATA%\Dollyt\bin`, vérifiera leur SHA-256, et ne les prendra que depuis les sources officielles.
+yt-dlp, FFmpeg et Deno ne sont pas versionnés. Au premier lancement, l'application utilise les outils disponibles dans le PATH ou télécharge yt-dlp depuis une release épinglée, puis vérifie son SHA-256 avant exécution. FFmpeg et Deno doivent être installés séparément pour le moment.
 
 ## Privacy
 
-Dollyt n'a pas de télémétrie.
+Dollyt n'a pas de télémétrie et n'envoie pas les vidéos vers un serveur Dollyt.
 
 Le réseau se limite à :
 

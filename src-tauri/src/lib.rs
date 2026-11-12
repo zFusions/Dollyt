@@ -1,76 +1,25 @@
 mod bins;
+mod commands;
 mod error;
 mod ffmpeg;
+mod filmstrip;
 mod format;
 mod jobs;
 mod log;
+mod presets;
 mod process;
+mod settings;
+mod storage;
+mod storyboard;
+mod updater;
 mod url;
+mod win_priority;
+mod youtube_session;
 mod ytdlp;
 
-use ffmpeg::CutResult;
-use jobs::{JobsState, start_cut_job};
-use serde::Serialize;
+use jobs::JobsState;
 use std::sync::Arc;
-use ytdlp::{DownloadResult, VideoInfo};
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RunCutResult {
-    download: DownloadResult,
-    cut: CutResult,
-}
-
-#[tauri::command]
-fn load_video(raw_url: String) -> Result<VideoInfo, String> {
-    let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-    ytdlp::fetch_video_info(&url).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn download_section(
-    raw_url: String,
-    format_id: String,
-    start_secs: f64,
-    end_secs: f64,
-) -> Result<DownloadResult, String> {
-    let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-    ytdlp::download_section(&url, &format_id, start_secs, end_secs, 3.0).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn run_cut_pipeline(
-    raw_url: String,
-    format_id: String,
-    start_secs: f64,
-    end_secs: f64,
-) -> Result<RunCutResult, String> {
-    let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-    let download = ytdlp::download_section(&url, &format_id, start_secs, end_secs, 3.0)
-        .map_err(|e| e.to_string())?;
-    let cut = ffmpeg::cut_exact_section(&download.path, start_secs, end_secs)
-        .map_err(|e| e.to_string())?;
-    Ok(RunCutResult { download, cut })
-}
-
-#[tauri::command]
-fn start_cut_job_command(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, Arc<JobsState>>,
-    raw_url: String,
-    format_id: String,
-    start_secs: f64,
-    end_secs: f64,
-) -> Result<u64, String> {
-    start_cut_job(
-        app,
-        Arc::clone(state.inner()),
-        raw_url,
-        format_id,
-        start_secs,
-        end_secs,
-    )
-}
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -78,17 +27,40 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(JobsState::default()))
         .setup(|app| {
+            win_priority::boost_app_process();
             bins::ensure_tools().map_err(|e| e.to_string())?;
+            let _ = storage::prune_on_startup();
             log::log_line("application démarrée");
-            let _ = app;
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.set_decorations(false);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            load_video,
-            download_section,
-            run_cut_pipeline,
-            start_cut_job_command,
-            jobs::cancel_job
+            commands::load_video,
+            commands::resolve_preview_url,
+            commands::start_local_preview,
+            commands::cancel_local_preview,
+            commands::fetch_metadata,
+            commands::get_storyboard,
+            commands::get_timeline_filmstrip,
+            commands::get_timeline_filmstrip_master,
+            commands::release_preview_cache,
+            commands::get_settings,
+            commands::save_settings_cmd,
+            commands::list_presets,
+            commands::get_preset,
+            commands::save_preset,
+            commands::bins_status,
+            commands::update_ytdlp,
+            commands::download_section,
+            commands::run_cut_pipeline,
+            commands::start_cut_job_command,
+            jobs::cancel_job,
+            youtube_session::open_youtube_login,
+            youtube_session::close_youtube_login,
+            youtube_session::probe_youtube_session,
+            youtube_session::pick_cookies_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

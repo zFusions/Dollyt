@@ -1,0 +1,16 @@
+{
+  "id": "edition",
+  "name": "Qualité locale",
+  "container": "mp4",
+  "videoCodec": "libx264",
+  "audioCodec": "aac",
+  "crf": 14,
+  "width": null,
+  "height": null,
+  "fps": null,
+  "crop": "none",
+  "audioBitrateKbps": 192,
+  "videoMaxBitrateKbps": null,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "MP4 haute qualité (CRF 14) pour archiver sur ton disque avant publication."
+}

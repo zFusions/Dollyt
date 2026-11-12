@@ -22,6 +22,8 @@ pub enum DollytError {
     BinHashMismatch { tool: String },
     #[error("opération annulée")]
     Cancelled,
+    #[error("preset introuvable : {0}")]
+    PresetNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, DollytError>;

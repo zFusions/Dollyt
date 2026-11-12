@@ -1,0 +1,16 @@
+{
+  "id": "x",
+  "name": "X (Twitter)",
+  "container": "mp4",
+  "videoCodec": "libx264",
+  "audioCodec": "aac",
+  "crf": 18,
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "crop": "center",
+  "audioBitrateKbps": 128,
+  "videoMaxBitrateKbps": 25000,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "MP4 vertical pour X. Plafond 25 Mbps côté aide X."
+}

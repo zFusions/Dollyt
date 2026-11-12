@@ -1,0 +1,16 @@
+{
+  "id": "quality-max",
+  "name": "QUALITY MAX",
+  "container": "mkv",
+  "videoCodec": "copy",
+  "audioCodec": "copy",
+  "crf": null,
+  "width": null,
+  "height": null,
+  "fps": null,
+  "crop": "none",
+  "audioBitrateKbps": null,
+  "videoMaxBitrateKbps": null,
+  "nameTemplate": "{titre}_depuis-{debut}s_jusqu-a-{fin}s",
+  "description": "Meilleur flux YouTube en copie MKV, sans ré-encodage ni plafond Mbps."
+}

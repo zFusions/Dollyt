@@ -1,0 +1,16 @@
+{
+  "id": "source",
+  "name": "Source brute",
+  "container": "mkv",
+  "videoCodec": "copy",
+  "audioCodec": "copy",
+  "crf": null,
+  "width": null,
+  "height": null,
+  "fps": null,
+  "crop": "none",
+  "audioBitrateKbps": null,
+  "videoMaxBitrateKbps": null,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "MKV en copie directe, sans ré-encodage. Rapide, fichiers souvent plus lourds."
+}
