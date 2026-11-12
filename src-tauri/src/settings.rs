@@ -35,6 +35,10 @@ pub struct Settings {
     pub dev_audio_bitrate_kbps: Option<u32>,
     #[serde(default)]
     pub dev_x264_preset: String,
+    #[serde(default)]
+    pub auto_update_app: bool,
+    #[serde(default)]
+    pub ignored_update_version: Option<String>,
 }
 
 fn default_export_preset_id() -> String {
@@ -58,6 +62,8 @@ impl Default for Settings {
             dev_fps: None,
             dev_audio_bitrate_kbps: None,
             dev_x264_preset: String::new(),
+            auto_update_app: false,
+            ignored_update_version: None,
         }
     }
 }

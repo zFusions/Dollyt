@@ -30,6 +30,8 @@ const DEFAULTS: Settings = {
   devFps: null,
   devAudioBitrateKbps: null,
   devX264Preset: "",
+  autoUpdateApp: false,
+  ignoredUpdateVersion: null,
 };
 
 export function SettingsView() {
@@ -62,6 +64,8 @@ export function SettingsView() {
           devFps: s.devFps ?? null,
           devAudioBitrateKbps: s.devAudioBitrateKbps ?? null,
           devX264Preset: s.devX264Preset ?? "",
+          autoUpdateApp: s.autoUpdateApp ?? false,
+          ignoredUpdateVersion: s.ignoredUpdateVersion ?? null,
         });
         setSelectedPresetId(presetId);
       })
@@ -248,6 +252,35 @@ export function SettingsView() {
         <h2 className="set-heading">Mises à jour</h2>
         <Panel>
           <div className="set-group">
+            <SettingRow
+              label="Mise à jour automatique de Dollyt"
+              hint={t("autoUpdateHint")}
+            >
+              <Switch
+                checked={draft.autoUpdateApp}
+                onChange={(value) =>
+                  setDraft((current) => ({ ...current, autoUpdateApp: value }))
+                }
+                label={t("autoUpdate")}
+              />
+            </SettingRow>
+            <SettingRow
+              label={t("checkUpdate")}
+              hint="Vérifie manuellement s'il existe une nouvelle version sur GitHub."
+            >
+              <PrimaryButton
+                variant="default"
+                className="btn-sm"
+                onClick={() => {
+                  setBusy(true);
+                  setMsg("");
+                  window.dispatchEvent(new CustomEvent("dollyt:check-update"));
+                }}
+                disabled={busy}
+              >
+                {t("checkUpdate")}
+              </PrimaryButton>
+            </SettingRow>
             <SettingRow
               label="Mise à jour automatique de yt-dlp"
               hint="Désactivée par défaut. Quand elle est activée, Dollyt vérifie la version épinglée au démarrage."

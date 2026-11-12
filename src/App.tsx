@@ -15,6 +15,7 @@ import { QueueView } from "./views/QueueView";
 import { SettingsView } from "./views/SettingsView";
 import { useLocale } from "./i18n";
 import { DownloadView } from "./views/DownloadView";
+import { useAppUpdater } from "./hooks/useAppUpdater";
 
 function App() {
   const locale = useLocale();
@@ -30,6 +31,7 @@ function App() {
   const finishDownload = useDollytStore((s) => s.finishDownload);
   const addHistory = useDollytStore((s) => s.addHistory);
   const { shownScreen, viewPhase } = useDeferredScreen(screen);
+  const { dialog: updateDialog, notice: updateNotice } = useAppUpdater();
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -119,15 +121,19 @@ function App() {
   }
 
   return (
-    <AppShell
-      screen={screen}
-      shownScreen={shownScreen}
-      viewPhase={viewPhase}
-      onNav={go}
-      editorEnabled={!EDITOR_QUARANTINED && !!video}
-    >
-      {body}
-    </AppShell>
+    <>
+      <AppShell
+        screen={screen}
+        shownScreen={shownScreen}
+        viewPhase={viewPhase}
+        onNav={go}
+        editorEnabled={!EDITOR_QUARANTINED && !!video}
+      >
+        {body}
+      </AppShell>
+      {updateDialog}
+      {updateNotice}
+    </>
   );
 }
 

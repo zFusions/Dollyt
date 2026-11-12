@@ -45,6 +45,8 @@ export type Settings = {
   devFps: number | null;
   devAudioBitrateKbps: number | null;
   devX264Preset: string;
+  autoUpdateApp: boolean;
+  ignoredUpdateVersion: string | null;
 };
 
 export type Preset = {
