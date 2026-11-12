@@ -7,7 +7,7 @@ const ITEMS: { id: Screen; label: string; short: string }[] = [
   { id: "editor", label: "Éditeur", short: "Montage" },
   { id: "presets", label: "Presets", short: "Presets" },
   { id: "settings", label: "Paramètres", short: "Réglages" },
-  { id: "queue", label: "File", short: "File" },
+  { id: "queue", label: "Historique", short: "Historique" },
 ];
 
 type Props = {

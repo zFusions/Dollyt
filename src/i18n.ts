@@ -1,11 +1,19 @@
-export type Locale = "fr" | "en";
+import { useSyncExternalStore } from "react";
 
-const locale: Locale =
+export type Locale = "fr" | "en";
+const LOCALE_KEY = "dollyt.locale.v1";
+const listeners = new Set<() => void>();
+const detectedLocale: Locale =
   typeof navigator !== "undefined" &&
   (navigator.language.toLowerCase().startsWith("fr") ||
     navigator.languages?.some((value) => value.toLowerCase().startsWith("fr")))
     ? "fr"
     : "en";
+let locale: Locale =
+  typeof localStorage !== "undefined" &&
+  (localStorage.getItem(LOCALE_KEY) === "fr" || localStorage.getItem(LOCALE_KEY) === "en")
+    ? (localStorage.getItem(LOCALE_KEY) as Locale)
+    : detectedLocale;
 
 const messages = {
   fr: {
@@ -15,7 +23,14 @@ const messages = {
     launch: "Lancer",
     presets: "Presets",
     settings: "Paramètres",
-    queue: "File",
+    queue: "Historique",
+    historyTitle: "Historique",
+    historySub: "Retrouve tes exports et leur vidéo d’origine.",
+    emptyHistory: "Aucun export pour le moment",
+    emptyHistorySub: "Ton prochain extrait apparaîtra ici automatiquement.",
+    openFolder: "Ouvrir le dossier",
+    fullVideoHistory: "Vidéo entière",
+    clipHistory: "Extrait",
     pasteUrl: "Colle ton lien YouTube",
     download: "Télécharger",
     exporting: "Export…",
@@ -33,6 +48,28 @@ const messages = {
     save: "Enregistrer",
     export: "Export",
     savedLocally: "Tout reste sur ton PC, sans envoi vers un serveur Dollyt.",
+    deleteHistory: "Supprimer cette entrée",
+    confirmDeleteHistory: "Supprimer cette vidéo de l’historique ?",
+    cancel: "Annuler",
+    delete: "Supprimer",
+    recentExports: "Exports récents",
+    language: "Langue",
+    french: "Français",
+    english: "Anglais",
+    preparingVideo: "Préparation de la vidéo",
+    downloadingVideo: "Téléchargement de la vidéo",
+    creatingClip: "Création de ton extrait",
+    done: "Terminé",
+    preparingClip: "Préparation de ton extrait",
+    clipReady: "Ton extrait est prêt",
+    clipReadySub: "Tu peux le regarder ou en créer un autre.",
+    restart: "Recommencer",
+    newClip: "Nouvel extrait",
+    openFile: "Ouvrir le fichier",
+    exportFailed: "On n’a pas pu créer ton extrait.",
+    retry: "Réessayer",
+    retryHint: "Réessaie avec le même lien.",
+    preview: "Aperçu",
   },
   en: {
     homeTitle: "From YouTube URL to clip, without the hassle",
@@ -41,7 +78,14 @@ const messages = {
     launch: "Start",
     presets: "Presets",
     settings: "Settings",
-    queue: "Queue",
+    queue: "History",
+    historyTitle: "History",
+    historySub: "Find your exports and their source video.",
+    emptyHistory: "No exports yet",
+    emptyHistorySub: "Your next clip will appear here automatically.",
+    openFolder: "Open folder",
+    fullVideoHistory: "Full video",
+    clipHistory: "Clip",
     pasteUrl: "Paste your YouTube link",
     download: "Download",
     exporting: "Exporting…",
@@ -59,6 +103,28 @@ const messages = {
     save: "Save",
     export: "Export",
     savedLocally: "Everything stays on your computer. Nothing is sent to a Dollyt server.",
+    deleteHistory: "Delete this entry",
+    confirmDeleteHistory: "Remove this video from history?",
+    cancel: "Cancel",
+    delete: "Delete",
+    recentExports: "Recent exports",
+    language: "Language",
+    french: "French",
+    english: "English",
+    preparingVideo: "Preparing video",
+    downloadingVideo: "Downloading video",
+    creatingClip: "Creating your clip",
+    done: "Done",
+    preparingClip: "Preparing your clip",
+    clipReady: "Your clip is ready",
+    clipReadySub: "Watch it or create another one.",
+    restart: "Start over",
+    newClip: "New clip",
+    openFile: "Open file",
+    exportFailed: "We couldn’t create your clip.",
+    retry: "Retry",
+    retryHint: "Try again with the same link.",
+    preview: "Preview",
   },
 } as const;
 
@@ -70,4 +136,21 @@ export function t(key: MessageKey): string {
 
 export function currentLocale(): Locale {
   return locale;
+}
+
+export function setLocale(next: Locale): void {
+  locale = next;
+  if (typeof localStorage !== "undefined") localStorage.setItem(LOCALE_KEY, next);
+  listeners.forEach((listener) => listener());
+}
+
+export function useLocale(): Locale {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => locale,
+    () => locale,
+  );
 }

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#0A0807"/>
+  <g font-family="Instrument Sans, sans-serif" fill="#E9E1D3">
+    <text x="100" y="100" font-size="24" letter-spacing="3" fill="#9A8F83">DOLLYT / BUTTON PRESETS</text>
+    <text x="100" y="180" font-size="18" fill="#62594F">2–3 px radius · 1 px hairline · inset highlight · no glow</text>
+    <g transform="translate(100 260)">
+      <rect width="420" height="78" rx="3" fill="#E03A1E"/>
+      <rect x="1" y="1" width="418" height="1" fill="#F28A72" opacity=".7"/>
+      <text x="36" y="49" font-size="24">Primary / Exporter</text>
+    </g>
+    <g transform="translate(100 390)">
+      <rect width="420" height="78" rx="3" fill="#181411" stroke="#3A322C"/>
+      <rect x="1" y="1" width="418" height="1" fill="#E9E1D3" opacity=".08"/>
+      <text x="36" y="49" font-size="24">Secondary / Parcourir</text>
+    </g>
+    <g transform="translate(100 520)">
+      <rect width="420" height="78" rx="3" fill="none" stroke="#2B2420"/>
+      <text x="36" y="49" font-size="24" fill="#9A8F83">Ghost / Annuler</text>
+    </g>
+    <g transform="translate(760 245)" font-family="IBM Plex Mono, monospace" font-size="22" fill="#9A8F83">
+      <text y="0">TOKENS</text>
+      <text y="60" fill="#E9E1D3">--safelight       #E03A1E</text>
+      <text y="104" fill="#E9E1D3">--surface-2       #181411</text>
+      <text y="148" fill="#E9E1D3">--line-strong     #3A322C</text>
+      <text y="192" fill="#E9E1D3">--fg              #E9E1D3</text>
+      <text y="236" fill="#E9E1D3">--font-ui         Instrument Sans</text>
+      <text y="280" fill="#E9E1D3">--font-code       IBM Plex Mono</text>
+      <text y="324" fill="#E9E1D3">--radius          2–3px</text>
+      <text y="368" fill="#E9E1D3">--shadow          inset only</text>
+    </g>
+  </g>
+</svg>

@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import {
   getSettings,
   listPresets,
@@ -33,8 +32,8 @@ export function HomeView() {
   const setSelectedPresetId = useDollytStore((s) => s.setSelectedPresetId);
   const exportFullVideo = useDollytStore((s) => s.exportFullVideo);
   const setExportFullVideo = useDollytStore((s) => s.setExportFullVideo);
-  const setJobPercent = useDollytStore((s) => s.setJobPercent);
-  const jobPercent = useDollytStore((s) => s.jobPercent);
+  const beginDownload = useDollytStore((s) => s.beginDownload);
+  const resetDownload = useDollytStore((s) => s.resetDownload);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -45,21 +44,6 @@ export function HomeView() {
       .then(setPresets)
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!isTauri()) return;
-    const unsubs: Array<() => void> = [];
-    listen<{ percent: number; stage: string }>("job-progress", (event) => {
-      setJobPercent(event.payload.percent);
-      setStatus(`${event.payload.stage}, ${event.payload.percent} %`);
-    }).then((u) => unsubs.push(u));
-    listen<{ ok: boolean; message: string }>("job-finished", (event) => {
-      setJobPercent(event.payload.ok ? 100 : 0);
-      setStatus(event.payload.message);
-      setBusy(false);
-    }).then((u) => unsubs.push(u));
-    return () => unsubs.forEach((u) => u());
-  }, [setJobPercent, setStatus]);
 
   async function onDownload(e: FormEvent) {
     e.preventDefault();
@@ -74,8 +58,8 @@ export function HomeView() {
     }
     setError("");
     setBusy(true);
-    setJobPercent(0);
-    setStatus("On lit la vidéo sur YouTube…");
+    beginDownload();
+    go("download");
     setVideo(null);
     setStoryboard(null);
     try {
@@ -84,9 +68,12 @@ export function HomeView() {
         setError(t("chooseOutput"));
         go("settings");
         setBusy(false);
+        resetDownload();
         return;
       }
-      const { video: loaded } = await loadVideo(url);
+      const { video: loaded, storyboard } = await loadVideo(url);
+      setVideo(loaded);
+      setStoryboard(storyboard);
       const fps = loaded.previewFps ?? 30;
       const dur = loaded.durationSecs || 0;
       const start = exportFullVideo
@@ -108,6 +95,7 @@ export function HomeView() {
       setError(msg);
       setStatus(msg);
       setBusy(false);
+      useDollytStore.getState().finishDownload(false, msg);
     }
   }
 
@@ -298,20 +286,6 @@ export function HomeView() {
               </div>
             </div>
             {busy ? <DinoLoader active /> : null}
-            {busy && jobPercent > 0 ? (
-              <div
-                className="home-progress"
-                role="progressbar"
-                aria-valuenow={jobPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div
-                  className="home-progress-fill"
-                  style={{ width: `${jobPercent}%` }}
-                />
-              </div>
-            ) : null}
           </form>
 
           <p className="home-hint">

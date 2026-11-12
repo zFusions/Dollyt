@@ -70,7 +70,11 @@ pub fn ensure_tools() -> Result<()> {
     let dir = bin_dir();
     fs::create_dir_all(&dir)?;
     let ytdlp = dir.join("yt-dlp.exe");
-    if !ytdlp.exists() {
+    let ytdlp_is_verified = ytdlp.exists()
+        && file_sha256_hex(&ytdlp)
+            .map(|hash| hash.eq_ignore_ascii_case(PINNED_YTDLP_EXE_SHA256))
+            .unwrap_or(false);
+    if !ytdlp_is_verified {
         download_ytdlp_release(&ytdlp)?;
     }
     let ffmpeg = bootstrap_tool("ffmpeg.exe", &dir.join("ffmpeg.exe"))?;

@@ -12,14 +12,7 @@ function RailAssetIcon({ id }: { id: Screen }) {
   const src = RAIL_ICON[id];
   if (!src) return null;
   return (
-    <span
-      className="rail-icon-asset"
-      style={{
-        WebkitMaskImage: `url(${src})`,
-        maskImage: `url(${src})`,
-      }}
-      aria-hidden
-    />
+    <img className="rail-icon-image" src={src} alt="" aria-hidden />
   );
 }
 

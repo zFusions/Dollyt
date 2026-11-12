@@ -101,7 +101,7 @@ fn is_muxed_streamable(format: &Value) -> bool {
         .get("protocol")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    !protocol.contains("m3u8")
+    protocol.contains("https") && !protocol.contains("m3u8")
 }
 
 fn is_video_https(format: &Value) -> bool {
@@ -126,7 +126,7 @@ fn is_video_https(format: &Value) -> bool {
     if protocol.contains("m3u8") {
         return false;
     }
-    protocol.contains("https") || protocol == "http"
+    protocol.contains("https")
 }
 
 fn format_id_is(format: &Value, id: &str) -> bool {

@@ -1,18 +1,32 @@
-# Rapport M1 — Moteur (partiel)
+# Rapport M1 — moteur (infra)
 
-Statut : en cours. UI Chambre noire amorcée en parallèle.
+**Statut :** infra moteur consolidée (validation BYPASS utilisateur). Interface / DA : hors périmètre de cette passe.
 
 ## Fait
 
-- Binaires : yt-dlp téléchargé avec SHA-256 ; FFmpeg/ffprobe/deno copiés depuis le PATH vers `%LOCALAPPDATA%\Dollyt\bin`.
-- `process`, `format` (preview + HQ en tests), `jobs` (un job, annulation, events).
-- Logs : `%LOCALAPPDATA%\Dollyt\logs\dollyt.log`, URLs redacted.
-- Progression yt-dlp via `--progress-template` (~10 Hz vers le front).
+- Modules `commands`, `settings`, `presets`, `storyboard`, `updater` (stub).
+- 6 presets JSON embarqués ; export jobs HQ → dossier `settings.exportDir` avec template de nom.
+- `VideoInfo.exportFormatId`, merge yt-dlp pour formats `vidéo+audio`.
+- Commandes settings / presets / bins / update_ytdlp / storyboard / metadata.
+- Logs rotation 2 Mo ; mock front `src/api/dollyt.ts` pour `npm run dev`.
+- CI Windows : build, tests, clippy.
 
-## Non vérifié / reste
+## Commandes
 
-- Téléchargement FFmpeg/Deno depuis sources officielles (hors copie PATH).
-- Export HQ branché sur `pick_download_formats`.
-- Progression FFmpeg en temps réel.
-- Mise à jour yt-dlp automatique.
-- Revue sécurité fin M1.
+```text
+npm run typecheck
+npm run test:rust
+npm run lint:rust
+npm run tauri dev
+```
+
+## Non vérifié ici
+
+- Export HQ réel sur une longue vidéo 4K (réseau).
+- `h264_nvenc` sans GPU NVIDIA.
+- CI GitHub Actions (workflow ajouté, pas exécuté sur Actions dans cette session).
+
+## Suite (hors infra)
+
+- M2 timeline + storyboards UI.
+- M5 Chambre noire / animations.

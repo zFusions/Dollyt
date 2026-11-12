@@ -24,11 +24,15 @@
     scrollbar-color: var(--scrollbar) transparent;
     caret-color: var(--accent-text);
     accent-color: var(--accent);
+    user-select: none;
+    -webkit-user-select: none;
   }
   input,
   textarea,
-  select {
+  select,
+  [contenteditable="true"] {
     user-select: text;
+    -webkit-user-select: text;
   }
   ::selection {
     background: color-mix(in srgb, var(--accent-text) 32%, transparent);

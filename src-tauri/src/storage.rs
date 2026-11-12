@@ -27,6 +27,21 @@ pub fn preview_mp4_path() -> PathBuf {
     p
 }
 
+pub fn copy_download_preview(source: &str) -> Result<String> {
+    let extension = Path::new(source)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("mp4");
+    let target = temp_cache_root()
+        .join("download-preview")
+        .join(format!("current.{extension}"));
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::copy(source, &target)?;
+    Ok(target.to_string_lossy().into_owned())
+}
+
 pub fn filmstrip_cache_root() -> PathBuf {
     let p = temp_cache_root().join("filmstrip");
     let _ = fs::create_dir_all(&p);
@@ -43,6 +58,7 @@ pub fn prune_on_startup() -> Result<()> {
 pub fn release_preview() {
     let _ = fs::remove_file(preview_mkv_path());
     let _ = fs::remove_file(preview_mp4_path());
+    let _ = fs::remove_dir_all(temp_cache_root().join("download-preview"));
 }
 
 /** Anciens fichiers %TEMP% (avant cache centralisé). */
