@@ -43,5 +43,14 @@
         "installerIcon": "icons/icon.ico"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ1NkYxQzBDMDRDM0U3RjkKUldUNTU4TUVEQnh2MVFWSjZKS3d4ZHE3K1NTMGd1SGVMTGpGZWo0N3RwaC9aZlhqRngwUXRGZ0sK",
+      "endpoints": [
+        "https://github.com/zFusions/Dollyt/releases/latest/download/latest.json"
+      ],
+      "dialog": false
+    }
   }
 }
