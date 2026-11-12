@@ -1,6 +1,8 @@
-use std::fs::{OpenOptions, create_dir_all};
+use std::fs::{self, OpenOptions, create_dir_all};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
 
 pub fn log_dir() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
@@ -17,10 +19,22 @@ pub fn log_line(message: &str) {
         return;
     }
     let path = dir.join("dollyt.log");
-    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
+    maybe_rotate(&path);
+    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) else {
         return;
     };
     let _ = writeln!(file, "{} {}", time_text(), safe.replace('\n', " "));
+}
+
+fn maybe_rotate(path: &Path) {
+    let Ok(meta) = fs::metadata(path) else {
+        return;
+    };
+    if meta.len() <= MAX_LOG_BYTES {
+        return;
+    }
+    let backup = path.with_extension("1.log");
+    let _ = fs::rename(path, backup);
 }
 
 fn time_text() -> String {

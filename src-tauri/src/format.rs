@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,19 +11,48 @@ pub fn pick_muxed_format(formats: &[Value]) -> Option<(String, String)> {
         if format.get("format_id").and_then(|v| v.as_str()) != Some("18") {
             continue;
         }
-        let id = format.get("format_id")?.as_str()?.to_string();
-        let url = format.get("url")?.as_str()?.to_string();
-        return Some((id, url));
+        if !is_muxed_streamable(format) {
+            continue;
+        }
+        return Some(muxed_pair(format, "18"));
     }
+    let mut best: Option<(u64, String, String)> = None;
     for format in formats {
-        if !is_muxed_https(format) {
+        if !is_muxed_streamable(format) {
             continue;
         }
         let id = format.get("format_id")?.as_str()?.to_string();
-        let url = format.get("url")?.as_str()?.to_string();
-        return Some((id, url));
+        let height = format.get("height").and_then(|v| v.as_u64()).unwrap_or(360);
+        match &best {
+            Some((h, _, _)) if *h <= height => {}
+            _ => best = Some((height, id, muxed_url(format))),
+        }
     }
-    None
+    best.map(|(_, id, url)| (id, url))
+}
+
+fn muxed_pair(format: &Value, default_id: &str) -> (String, String) {
+    let id = format
+        .get("format_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or(default_id)
+        .to_string();
+    (id, muxed_url(format))
+}
+
+fn muxed_url(format: &Value) -> String {
+    format
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+pub fn to_ytdlp_format(sel: &FormatSelection) -> String {
+    match &sel.audio_id {
+        Some(audio) => format!("{}+{}", sel.video_id, audio),
+        None => sel.video_id.clone(),
+    }
 }
 
 pub fn pick_download_formats(formats: &[Value]) -> Option<FormatSelection> {
@@ -35,11 +62,17 @@ pub fn pick_download_formats(formats: &[Value]) -> Option<FormatSelection> {
         .max_by(|a, b| {
             let ra = a.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
             let rb = b.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
-            ra.cmp(&rb).then_with(|| {
-                let fa = a.get("fps").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let fb = b.get("fps").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                fa.partial_cmp(&fb).unwrap_or(std::cmp::Ordering::Equal)
-            })
+            ra.cmp(&rb)
+                .then_with(|| {
+                    let fa = a.get("fps").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    let fb = b.get("fps").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    fa.partial_cmp(&fb).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .then_with(|| {
+                    format_video_kbps(a)
+                        .partial_cmp(&format_video_kbps(b))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
         })?;
     let video_id = video.get("format_id")?.as_str()?.to_string();
     let audio = formats
@@ -52,7 +85,7 @@ pub fn pick_download_formats(formats: &[Value]) -> Option<FormatSelection> {
     Some(FormatSelection { video_id, audio_id })
 }
 
-fn is_muxed_https(format: &Value) -> bool {
+fn is_muxed_streamable(format: &Value) -> bool {
     let vcodec = format
         .get("vcodec")
         .and_then(|v| v.as_str())
@@ -100,6 +133,14 @@ fn format_id_is(format: &Value, id: &str) -> bool {
     format.get("format_id").and_then(|v| v.as_str()) == Some(id)
 }
 
+fn format_video_kbps(format: &Value) -> f64 {
+    format
+        .get("tbr")
+        .or_else(|| format.get("vbr"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,5 +163,15 @@ mod tests {
         let formats = value["formats"].as_array().expect("formats");
         let (id, _) = pick_muxed_format(formats).expect("muxed");
         assert_eq!(id, "18");
+    }
+
+    #[test]
+    fn preview_accepts_18_without_inline_url() {
+        let json = fs::read_to_string("fixtures/format18_no_url.json").expect("fixture");
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        let formats = value["formats"].as_array().expect("formats");
+        let (id, url) = pick_muxed_format(formats).expect("muxed");
+        assert_eq!(id, "18");
+        assert!(url.is_empty());
     }
 }

@@ -3,13 +3,13 @@ use crate::format;
 use crate::process;
 use serde::Serialize;
 use serde_json::Value;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Child;
-use std::io::{BufRead, BufReader};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime};
 
 pub type ProgressFn = Arc<dyn Fn(u8) + Send + Sync>;
 
@@ -20,6 +20,10 @@ pub struct VideoInfo {
     pub duration_secs: f64,
     pub preview_url: String,
     pub format_id: String,
+    pub export_format_id: String,
+    pub preview_fps: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_file_duration_secs: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -29,9 +33,51 @@ pub struct DownloadResult {
     pub elapsed_ms: u64,
 }
 
-pub fn fetch_video_info(url: &str) -> Result<VideoInfo> {
+/// Test rapide sans lien utilisateur (Me at the zoo).
+pub fn probe_youtube() -> Result<Value> {
+    fetch_metadata_json("https://www.youtube.com/watch?v=jNQXAC9IVRw")
+}
+
+pub fn fetch_metadata_json(url: &str) -> Result<Value> {
     let output = process::run_ytdlp(&["-J", url])?;
+    if !output.status.success() {
+        return Err(DollytError::YtdlpFailed(ytdlp_user_message(
+            &String::from_utf8_lossy(&output.stderr),
+        )));
+    }
     let value: Value = serde_json::from_slice(&output.stdout)?;
+    if value.is_null() {
+        return Err(DollytError::YtdlpFailed(ytdlp_user_message(
+            &String::from_utf8_lossy(&output.stderr),
+        )));
+    }
+    Ok(value)
+}
+
+fn ytdlp_user_message(stderr: &str) -> String {
+    let s = stderr.trim();
+    if s.contains("Could not copy Chrome cookie database") {
+        return "Chrome et Edge verrouillent leurs cookies sous Windows : yt-dlp ne peut pas les lire. Paramètres → Firefox, ou un fichier cookies.txt (extension « Get cookies.txt LOCALLY » sur youtube.com).".into();
+    }
+    if s.contains("Failed to decrypt with DPAPI") {
+        return "Cookies Chrome/Edge illisibles sous Windows. Utilise Firefox, ou un fichier cookies.txt, dans Paramètres.".into();
+    }
+    if s.contains("Sign in to confirm") || s.to_ascii_lowercase().contains("not a bot") {
+        return "YouTube bloque l’accès sans session. Paramètres → Firefox (connecté à YouTube), ou colle le chemin d’un cookies.txt exporté depuis le navigateur, Enregistrer, puis relance le lien.".into();
+    }
+    if s.contains("Private video") {
+        return "Vidéo privée ou inaccessible.".into();
+    }
+    if s.len() > 320 {
+        format!("{}…", &s[..320])
+    } else if s.is_empty() {
+        "yt-dlp n'a pas renvoyé de métadonnées.".into()
+    } else {
+        s.to_string()
+    }
+}
+
+pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
     let title = value
         .get("title")
         .and_then(|v| v.as_str())
@@ -46,14 +92,78 @@ pub fn fetch_video_info(url: &str) -> Result<VideoInfo> {
         .and_then(|v| v.as_array())
         .map(|v| v.as_slice())
         .unwrap_or(&[]);
-    let (format_id, preview_url) =
-        format::pick_muxed_format(formats).ok_or(DollytError::NoMuxedFormat)?;
+    let (format_id, preview_url) = match format::pick_muxed_format(formats) {
+        Some(p) => p,
+        None if value.get("id").and_then(|v| v.as_str()).is_some() => {
+            ("18".to_string(), String::new())
+        }
+        None => return Err(DollytError::NoMuxedFormat),
+    };
+    let preview_fps = muxed_fps_for_id(formats, &format_id);
+    let export_format_id = format::pick_download_formats(formats)
+        .map(|s| format::to_ytdlp_format(&s))
+        .unwrap_or_else(|| format_id.clone());
     Ok(VideoInfo {
         title,
         duration_secs,
         preview_url,
         format_id,
+        export_format_id,
+        preview_fps,
+        preview_file_duration_secs: None,
     })
+}
+
+pub fn fetch_video_info(url: &str) -> Result<VideoInfo> {
+    video_info_from_json(&fetch_metadata_json(url)?)
+}
+
+/** URL fraîche pour la balise video (les URL du JSON -J expirent vite). */
+pub fn resolve_muxed_stream_url(page_url: &str, format_id: &str) -> Result<String> {
+    let fmt = if format_id.is_empty() {
+        "18/b".to_string()
+    } else {
+        format_id.to_string()
+    };
+    let output = process::run_ytdlp(&["-f", &fmt, "-g", page_url])?;
+    if !output.status.success() {
+        return Err(DollytError::YtdlpFailed(ytdlp_user_message(
+            &String::from_utf8_lossy(&output.stderr),
+        )));
+    }
+    let line = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find(|l| l.starts_with("http"))
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if line.is_empty() {
+        return Err(DollytError::YtdlpFailed(
+            "aucune URL de lecture muxée".into(),
+        ));
+    }
+    Ok(line)
+}
+
+fn muxed_fps_for_id(formats: &[Value], format_id: &str) -> f64 {
+    formats
+        .iter()
+        .find(|f| f.get("format_id").and_then(|v| v.as_str()) == Some(format_id))
+        .and_then(|f| f.get("fps").and_then(|v| v.as_f64()))
+        .unwrap_or(30.0)
+        .clamp(1.0, 120.0)
+}
+
+pub fn resolve_export_format(url: &str, fallback: &str) -> Result<String> {
+    let value = fetch_metadata_json(url)?;
+    let formats = value
+        .get("formats")
+        .and_then(|v| v.as_array())
+        .map(|v| v.as_slice())
+        .unwrap_or(&[]);
+    Ok(format::pick_download_formats(formats)
+        .map(|s| format::to_ytdlp_format(&s))
+        .unwrap_or_else(|| fallback.to_string()))
 }
 
 pub fn download_section(
@@ -94,16 +204,22 @@ pub fn download_section_cancellable(
     let out = temp_mkv_path();
     let out_arg = out.to_str().expect("chemin temporaire UTF-8");
     let start = SystemTime::now();
-    let args = [
+    let mut args: Vec<&str> = vec![
         "-f",
         format_id,
+        "-N",
+        "4",
         "--download-sections",
         &section,
         "-o",
         out_arg,
-        url,
     ];
-    let mut child = process::spawn_ytdlp(&args)?;
+    if format_id.contains('+') {
+        args.extend(["--merge-output-format", "mkv"]);
+    }
+    args.push(url);
+    let args = args.as_slice();
+    let mut child = process::spawn_ytdlp(args)?;
     let stderr = child.stderr.take();
     let pct = Arc::new(AtomicU8::new(0));
     if let Some(stderr) = stderr {
@@ -215,11 +331,9 @@ fn kill_process_tree(pid: u32) {
 fn kill_process_tree(_pid: u32) {}
 
 fn temp_mkv_path() -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    std::env::temp_dir().join(format!("dollyt-{stamp}.mkv"))
+    let p = crate::storage::preview_mkv_path();
+    let _ = std::fs::remove_file(&p);
+    p
 }
 
 #[cfg(test)]
