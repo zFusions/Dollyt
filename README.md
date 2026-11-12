@@ -42,26 +42,41 @@ set is prepared.
 - WebView2 Runtime.
 - Rust stable and the Tauri prerequisites for source builds.
 - Node.js and npm.
-- FFmpeg, ffprobe and Deno available on `PATH` for the first setup.
 
 yt-dlp is downloaded from an official pinned GitHub release and verified with
-SHA-256 before use. FFmpeg, ffprobe and Deno are currently bootstrapped from
-the system `PATH`; production packaging should provide verified, pinned copies.
+SHA-256 before use. On first launch, FFmpeg, ffprobe and Deno are downloaded
+from pinned official releases and verified with SHA-256 into
+`%LOCALAPPDATA%\Dollyt\bin`. An internet connection is required for this
+one-time setup.
+
+Runtime tool licenses and sources are listed in
+[THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Installation
 
 Download the Windows installer from the project's releases page when one is
 published. The initial V1 installers are not code-signed yet; Windows
 SmartScreen may display a warning until a signing certificate is configured.
-User settings and history are stored outside the install
+User settings, history and downloaded tools are stored outside the install
 directory in `%LOCALAPPDATA%\Dollyt`.
 
 ## Build from source
+
+The repository includes the required JavaScript packages in `package.json`.
+The first development command automatically runs `npm install` if
+`node_modules` is missing or incomplete.
 
 ```powershell
 npm install
 npm run typecheck
 npm run build
+npm run tauri dev
+```
+
+If you prefer to install dependencies explicitly first:
+
+```powershell
+npm install
 npm run tauri dev
 ```
 
@@ -120,6 +135,9 @@ Keep changes focused, add a regression test for behavior changes, and run the
 validation commands above before opening a pull request. Do not commit
 credentials, cookies, local paths or generated build artifacts.
 
-## License
+## License and branding
 
-MIT. See [LICENSE](LICENSE).
+The source code is available under the MIT License. See [LICENSE](LICENSE).
+The Dollyt name and logo are not granted for use as the identity of a fork;
+see [TRADEMARKS.md](TRADEMARKS.md). Forks must use distinct branding and
+identify themselves as independent projects.

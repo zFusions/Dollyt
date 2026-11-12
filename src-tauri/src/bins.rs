@@ -3,16 +3,17 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::OnceLock;
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-const CREATE_NO_WINDOW: u32 = 0x08000000;
 const PINNED_YTDLP_TAG: &str = "2026.10.26";
 const PINNED_YTDLP_EXE_SHA256: &str =
     "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d";
+const PINNED_FFMPEG_ARCHIVE_URL: &str = "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-12-15-40/ffmpeg-n8.1.3-35-gf1acb0a266-win64-lgpl-8.1.zip";
+const PINNED_FFMPEG_ARCHIVE_SHA256: &str =
+    "f8cd2e3a9570cc0101876569f21f130f7741cc86a97476f98132cba9f610d906";
+const PINNED_DENO_ARCHIVE_URL: &str =
+    "https://github.com/denoland/deno/releases/download/v2.9.8/deno-x86_64-pc-windows-msvc.zip";
+const PINNED_DENO_ARCHIVE_SHA256: &str =
+    "cba84b26e0df5ae7f74fc66b86a95b866872a86292ebd84fa1e959927edd93bf";
 
 #[derive(Clone, Debug)]
 pub struct ToolPaths {
@@ -77,9 +78,27 @@ pub fn ensure_tools() -> Result<()> {
     if !ytdlp_is_verified {
         download_ytdlp_release(&ytdlp)?;
     }
-    let ffmpeg = bootstrap_tool("ffmpeg.exe", &dir.join("ffmpeg.exe"))?;
-    let ffprobe = bootstrap_tool("ffprobe.exe", &dir.join("ffprobe.exe"))?;
-    let deno = bootstrap_tool("deno.exe", &dir.join("deno.exe"))?;
+    let ffmpeg = bootstrap_archive_tool(
+        "ffmpeg.exe",
+        &dir.join("ffmpeg.exe"),
+        PINNED_FFMPEG_ARCHIVE_URL,
+        PINNED_FFMPEG_ARCHIVE_SHA256,
+        "/bin/ffmpeg.exe",
+    )?;
+    let ffprobe = bootstrap_archive_tool(
+        "ffprobe.exe",
+        &dir.join("ffprobe.exe"),
+        PINNED_FFMPEG_ARCHIVE_URL,
+        PINNED_FFMPEG_ARCHIVE_SHA256,
+        "/bin/ffprobe.exe",
+    )?;
+    let deno = bootstrap_archive_tool(
+        "deno.exe",
+        &dir.join("deno.exe"),
+        PINNED_DENO_ARCHIVE_URL,
+        PINNED_DENO_ARCHIVE_SHA256,
+        "deno.exe",
+    )?;
     let paths = ToolPaths {
         ytdlp,
         ffmpeg,
@@ -100,28 +119,49 @@ pub fn bin_dir() -> PathBuf {
         .join("bin")
 }
 
-/// shortcut: copie depuis le PATH, remplacer par téléchargement officiel FFmpeg/Deno plus tard
-fn bootstrap_tool(name: &str, dest: &Path) -> Result<PathBuf> {
+fn bootstrap_archive_tool(
+    name: &str,
+    dest: &Path,
+    url: &str,
+    expected_hash: &str,
+    archive_suffix: &str,
+) -> Result<PathBuf> {
     if dest.exists() {
         return Ok(dest.to_path_buf());
     }
-    let stem = name.trim_end_matches(".exe");
-    let mut cmd = Command::new("where");
-    cmd.arg(stem);
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let output = cmd.output()?;
-    if !output.status.success() {
+    let archive_path = dest.with_extension("zip");
+    download_bytes(url, &archive_path)?;
+    if let Err(error) = verify_file_sha256_value(&archive_path, expected_hash, name) {
+        fs::remove_file(&archive_path).ok();
+        return Err(error);
+    }
+
+    let file = fs::File::open(&archive_path)?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|error| DollytError::BinDownload(error.to_string()))?;
+    let mut found = false;
+    for index in 0..archive.len() {
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|error| DollytError::BinDownload(error.to_string()))?;
+        let entry_name = entry.name().replace('\\', "/");
+        if !entry_name.ends_with(archive_suffix) || entry_name.contains("../") {
+            continue;
+        }
+        let temporary = dest.with_extension("tmp");
+        let mut output = fs::File::create(&temporary)?;
+        std::io::copy(&mut entry, &mut output)?;
+        if dest.exists() {
+            fs::remove_file(dest)?;
+        }
+        fs::rename(temporary, dest)?;
+        found = true;
+        break;
+    }
+    fs::remove_file(&archive_path).ok();
+    if !found {
         return Err(DollytError::BinMissing(name.to_string()));
     }
-    let line = String::from_utf8_lossy(&output.stdout);
-    let src = line
-        .lines()
-        .next()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| DollytError::BinMissing(name.to_string()))?;
-    fs::copy(src, dest)?;
     Ok(dest.to_path_buf())
 }
 
@@ -159,13 +199,17 @@ fn download_bytes(url: &str, dest: &Path) -> Result<()> {
 }
 
 fn verify_file_sha256(path: &Path, expected: &str) -> Result<()> {
+    verify_file_sha256_value(path, expected, "yt-dlp.exe")
+}
+
+fn verify_file_sha256_value(path: &Path, expected: &str, tool: &str) -> Result<()> {
     let bytes = fs::read(path)?;
     let digest = Sha256::digest(&bytes);
     let got = hex::encode(digest);
     if got != expected {
         fs::remove_file(path).ok();
         return Err(DollytError::BinHashMismatch {
-            tool: "yt-dlp.exe".into(),
+            tool: tool.to_string(),
         });
     }
     Ok(())
