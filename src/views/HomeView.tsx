@@ -117,6 +117,7 @@ export function HomeView() {
             className="home-brand"
             {...(isTauri() ? { "data-tauri-drag-region": true } : {})}
           >
+            <img className="brand-mark" src="/logo-red.png" alt="" aria-hidden />
             Dollyt
           </span>
           {isTauri() ? (

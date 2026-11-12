@@ -24,7 +24,10 @@ export function NavRail({ screen, onNav, editorEnabled, compact }: Props) {
       aria-label="Navigation"
     >
       <div className="rail-brand">
-        <strong>{compact ? "D" : "Dollyt"}</strong>
+        <strong>
+          <img className="brand-mark" src="/logo-red.png" alt="" aria-hidden />
+          {!compact ? "Dollyt" : null}
+        </strong>
         {!compact ? <span className="meta">Clips YouTube</span> : null}
       </div>
       <div className="rail-nav">
