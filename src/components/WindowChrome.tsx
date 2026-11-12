@@ -61,7 +61,12 @@ export function WindowChrome({ showTitle = true }: Props) {
   return (
     <header className="win-chrome win-chrome--frameless">
       <div className="win-chrome-drag" data-tauri-drag-region>
-        {showTitle ? <span className="win-chrome-title">Dollyt</span> : null}
+        {showTitle ? (
+          <span className="win-chrome-title">
+            <img className="brand-mark" src="/logo-red.png" alt="" aria-hidden />
+            Dollyt
+          </span>
+        ) : null}
       </div>
       <WindowControls />
     </header>

@@ -20,10 +20,17 @@
     -webkit-user-select: none;
   }
   .win-chrome-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     font-size: var(--fs-small);
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--fg-2);
+  }
+  .win-chrome-title .brand-mark {
+    width: 20px;
+    height: 18px;
   }
   .win-chrome-controls {
     display: flex;
