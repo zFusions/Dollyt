@@ -78,11 +78,70 @@ pub fn pick_download_formats(formats: &[Value]) -> Option<FormatSelection> {
     let audio = formats
         .iter()
         .find(|f| format_id_is(f, "251"))
-        .or_else(|| formats.iter().find(|f| format_id_is(f, "140")));
+        .or_else(|| formats.iter().find(|f| format_id_is(f, "140")))
+        .or_else(|| best_audio_only(formats));
     let audio_id = audio
         .and_then(|f| f.get("format_id"))
         .and_then(|v| v.as_str().map(String::from));
     Some(FormatSelection { video_id, audio_id })
+}
+
+fn best_audio_only(formats: &[Value]) -> Option<&Value> {
+    formats.iter().filter(|f| is_audio_https(f)).max_by(|a, b| {
+        is_plain_id(a)
+            .cmp(&is_plain_id(b))
+            .then_with(|| is_opus(a).cmp(&is_opus(b)))
+            .then_with(|| {
+                audio_kbps(a)
+                    .partial_cmp(&audio_kbps(b))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+    })
+}
+
+fn is_plain_id(format: &Value) -> bool {
+    format
+        .get("format_id")
+        .and_then(|v| v.as_str())
+        .is_some_and(|id| !id.contains('-'))
+}
+
+fn is_opus(format: &Value) -> bool {
+    format
+        .get("acodec")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .contains("opus")
+}
+
+fn audio_kbps(format: &Value) -> f64 {
+    format
+        .get("abr")
+        .or_else(|| format.get("tbr"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0)
+}
+
+fn is_audio_https(format: &Value) -> bool {
+    let vcodec = format
+        .get("vcodec")
+        .and_then(|v| v.as_str())
+        .unwrap_or("none");
+    if vcodec != "none" {
+        return false;
+    }
+    let acodec = format
+        .get("acodec")
+        .and_then(|v| v.as_str())
+        .unwrap_or("none");
+    if acodec == "none" {
+        return false;
+    }
+    let protocol = format
+        .get("protocol")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    protocol.contains("https") && !protocol.contains("m3u8")
 }
 
 fn is_muxed_streamable(format: &Value) -> bool {
@@ -154,6 +213,22 @@ mod tests {
         let selection = pick_download_formats(formats).expect("hq");
         assert_eq!(selection.video_id, "308");
         assert_eq!(selection.audio_id.as_deref(), Some("251"));
+    }
+
+    #[test]
+    fn audio_falls_back_to_other_audio_only_format() {
+        let value: serde_json::Value = serde_json::json!({
+            "formats": [
+                {"format_id": "313", "vcodec": "vp9", "acodec": "none", "protocol": "https", "height": 2160, "fps": 30, "tbr": 100},
+                {"format_id": "600", "vcodec": "none", "acodec": "mp4a.40.2", "protocol": "https", "abr": 128},
+                {"format_id": "601", "vcodec": "none", "acodec": "opus", "protocol": "https", "abr": 160},
+                {"format_id": "602-drc", "vcodec": "none", "acodec": "opus", "protocol": "https", "abr": 256}
+            ]
+        });
+        let formats = value["formats"].as_array().expect("formats");
+        let selection = pick_download_formats(formats).expect("sel");
+        assert_eq!(selection.video_id, "313");
+        assert_eq!(selection.audio_id.as_deref(), Some("601"));
     }
 
     #[test]

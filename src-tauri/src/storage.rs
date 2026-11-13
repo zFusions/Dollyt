@@ -15,15 +15,23 @@ fn temp_cache_root() -> PathBuf {
     p
 }
 
-pub fn preview_mkv_path() -> PathBuf {
-    let p = temp_cache_root().join("preview").join("_download.mkv");
-    let _ = fs::create_dir_all(p.parent().expect("parent"));
+pub fn preview_cache_dir() -> PathBuf {
+    let p = temp_cache_root().join("preview");
+    let _ = fs::create_dir_all(&p);
     p
 }
 
 pub fn preview_mp4_path() -> PathBuf {
-    let p = temp_cache_root().join("preview").join("current.mp4");
-    let _ = fs::create_dir_all(p.parent().expect("parent"));
+    preview_cache_dir().join("current.mp4")
+}
+
+pub fn download_preview_mp4_path() -> PathBuf {
+    let p = temp_cache_root()
+        .join("download-preview")
+        .join("current.mp4");
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
     p
 }
 
@@ -54,10 +62,20 @@ pub fn prune_on_startup() -> Result<()> {
     Ok(())
 }
 
+/** Vrai si le chemin canonique est sous %TEMP%\dollyt-cache. */
+pub fn path_in_temp_cache(path: &str) -> bool {
+    let Ok(root) = temp_cache_root().canonicalize() else {
+        return false;
+    };
+    Path::new(path)
+        .canonicalize()
+        .map(|p| p.starts_with(&root))
+        .unwrap_or(false)
+}
+
 /** Quitter l’éditeur : libère le gros fichier preview (~centaines de Mo). */
 pub fn release_preview() {
-    let _ = fs::remove_file(preview_mkv_path());
-    let _ = fs::remove_file(preview_mp4_path());
+    let _ = fs::remove_dir_all(preview_cache_dir());
     let _ = fs::remove_dir_all(temp_cache_root().join("download-preview"));
 }
 

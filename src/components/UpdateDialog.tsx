@@ -27,14 +27,14 @@ export function UpdateDialog({
   }
 
   return (
-    <div className="dialog-overlay">
-      <div className="dialog-card">
-        <h2 className="dialog-title">{t("updateAvailable")}</h2>
-        <p className="dialog-sub">
+    <div className="set-dev-gate" role="presentation">
+      <div className="set-dev-gate-card">
+        <h2 className="set-dev-gate-title">{t("updateAvailable")}</h2>
+        <p className="meta set-dev-gate-lead">
           {t("updateAvailableSub")} {version}
         </p>
-        {body && <p className="dialog-body">{body}</p>}
-        <div className="dialog-actions">
+        {body ? <p className="meta set-dev-gate-lead">{body}</p> : null}
+        <div className="set-dev-gate-actions">
           <PrimaryButton
             variant="default"
             className="btn-sm"

@@ -4,7 +4,15 @@ use crate::process;
 use crate::settings::Settings;
 use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
+use std::process::{Child, Output};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +22,10 @@ pub struct CutResult {
     pub elapsed_ms: u64,
 }
 
+/// Fraction 0..1 de l'encodage écoulée (estimée via `time=` de ffmpeg).
+pub type EncodeProgressFn = Arc<dyn Fn(f64) + Send + Sync>;
+
+#[cfg(test)]
 pub fn cut_exact_section(
     mkv_path: &str,
     trim_start_secs: f64,
@@ -47,6 +59,7 @@ pub fn cut_exact_section(
     )
 }
 
+#[cfg(test)]
 pub fn export_section(
     input_path: &str,
     trim_start_secs: f64,
@@ -55,6 +68,31 @@ pub fn export_section(
     out_path: &Path,
     hardware_encode: bool,
     x264_preset: &str,
+) -> Result<CutResult> {
+    export_section_impl(
+        input_path,
+        trim_start_secs,
+        trim_end_secs,
+        preset,
+        out_path,
+        hardware_encode,
+        x264_preset,
+        None,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn export_section_impl(
+    input_path: &str,
+    trim_start_secs: f64,
+    trim_end_secs: f64,
+    preset: &Preset,
+    out_path: &Path,
+    hardware_encode: bool,
+    x264_preset: &str,
+    cancel_ctx: Option<(&AtomicBool, &Arc<Mutex<Option<Child>>>)>,
+    on_encode: Option<EncodeProgressFn>,
 ) -> Result<CutResult> {
     let input = Path::new(input_path);
     if !input.exists() {
@@ -80,8 +118,14 @@ pub fn export_section(
     let bufsize = preset
         .video_max_bitrate_kbps
         .map(|k| format!("{}k", k.saturating_mul(2)));
-    let vf = video_filter_for_preset(preset);
-    let vcodec = pick_video_encoder(preset, hardware_encode).to_string();
+    let stream_copy = preset.video_codec == "copy" && preset.audio_codec == "copy";
+    // -vf est incompatible avec -c:v copy même si l'audio est ré-encodé.
+    let vf = if preset.video_codec == "copy" {
+        None
+    } else {
+        video_filter_for_preset(preset)
+    };
+    let vcodec = pick_video_encoder(preset, hardware_encode);
     let crf = preset.crf.map(|c| c.to_string());
     let ab = preset
         .audio_bitrate_kbps
@@ -90,16 +134,25 @@ pub fn export_section(
     let fps = preset.fps.map(|f| f.to_string());
 
     let mut args: Vec<&str> = vec!["-y", "-ss", &ss, "-i", input_path, "-t", &dur];
+    args.extend(["-map", "0:v:0", "-map", "0:a:0?"]);
     if let Some(filter) = vf.as_deref() {
         args.extend(["-vf", filter]);
     }
-    if preset.video_codec == "copy" && preset.audio_codec == "copy" {
+    if stream_copy {
         args.extend(["-c", "copy"]);
     } else {
         args.extend(["-c:v", vcodec.as_str()]);
-        if vcodec == "libx264" {
+        if vcodec == "libx264" || vcodec == "h264_nvenc" {
             if let Some(crf) = &crf {
-                args.extend(["-crf", crf.as_str()]);
+                // NVENC veut -cq, x264 veut -crf.
+                args.extend([
+                    if vcodec == "h264_nvenc" {
+                        "-cq"
+                    } else {
+                        "-crf"
+                    },
+                    crf.as_str(),
+                ]);
             }
             args.extend(["-preset", x264_preset]);
             if let (Some(m), Some(b)) = (maxrate.as_deref(), bufsize.as_deref()) {
@@ -117,7 +170,15 @@ pub fn export_section(
     }
     let out_str = out_path.to_str().expect("chemin UTF-8");
     args.push(out_str);
-    let output = process::run_ffmpeg(&args)?;
+    let on_media_time = on_encode.map(|cb| {
+        let duration = duration.max(0.001);
+        Arc::new(move |secs: f64| cb((secs / duration).clamp(0.0, 1.0)))
+            as Arc<dyn Fn(f64) + Send + Sync>
+    });
+    let output = match cancel_ctx {
+        Some((cancel, slot)) => run_ffmpeg_cancellable(&args, cancel, slot, on_media_time)?,
+        None => process::run_ffmpeg(&args)?,
+    };
     ensure_success(&output)?;
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
     let output_duration_secs = probe_duration_secs(out_str)?;
@@ -128,13 +189,40 @@ pub fn export_section(
     })
 }
 
-pub fn export_to_settings_path(
+#[allow(clippy::too_many_arguments)]
+pub fn export_to_settings_path_cancellable(
     input_path: &str,
     title: &str,
     trim_start_secs: f64,
     trim_end_secs: f64,
     preset: &Preset,
     settings: &Settings,
+    cancel: &AtomicBool,
+    child_slot: &Arc<Mutex<Option<Child>>>,
+    on_encode: Option<EncodeProgressFn>,
+) -> Result<CutResult> {
+    export_to_settings_path_impl(
+        input_path,
+        title,
+        trim_start_secs,
+        trim_end_secs,
+        preset,
+        settings,
+        Some((cancel, child_slot)),
+        on_encode,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn export_to_settings_path_impl(
+    input_path: &str,
+    title: &str,
+    trim_start_secs: f64,
+    trim_end_secs: f64,
+    preset: &Preset,
+    settings: &Settings,
+    cancel_ctx: Option<(&AtomicBool, &Arc<Mutex<Option<Child>>>)>,
+    on_encode: Option<EncodeProgressFn>,
 ) -> Result<CutResult> {
     let mut effective = preset.clone();
     crate::settings::apply_dev_overrides(&mut effective, settings);
@@ -146,7 +234,7 @@ pub fn export_to_settings_path(
         trim_end_secs,
         &effective.container,
     );
-    export_section(
+    export_section_impl(
         input_path,
         trim_start_secs,
         trim_end_secs,
@@ -154,14 +242,27 @@ pub fn export_to_settings_path(
         &out,
         settings.hardware_encode,
         x264_preset,
+        cancel_ctx,
+        on_encode,
     )
 }
 
-fn pick_video_encoder(preset: &Preset, hardware_encode: bool) -> &str {
-    if hardware_encode && preset.video_codec == "libx264" {
-        "h264_nvenc"
+fn nvenc_available() -> bool {
+    static OK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OK.get_or_init(|| {
+        process::run_ffmpeg(&["-hide_banner", "-encoders"])
+            .map(|o| {
+                o.status.success() && String::from_utf8_lossy(&o.stdout).contains("h264_nvenc")
+            })
+            .unwrap_or(false)
+    })
+}
+
+fn pick_video_encoder(preset: &Preset, hardware_encode: bool) -> String {
+    if hardware_encode && preset.video_codec == "libx264" && nvenc_available() {
+        "h264_nvenc".to_string()
     } else {
-        preset.video_codec.as_str()
+        preset.video_codec.clone()
     }
 }
 
@@ -179,6 +280,7 @@ fn video_filter_for_preset(preset: &Preset) -> Option<String> {
     ))
 }
 
+#[cfg(test)]
 fn temp_mp4_path() -> PathBuf {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -205,6 +307,29 @@ pub fn file_duration_secs(path: &str) -> Result<f64> {
     probe_duration_secs(path)
 }
 
+/** WebView2 ne lit pas le MKV : remux copie vers MP4 pour la preview. */
+pub fn remux_download_preview(source: &str) -> Result<String> {
+    let out = crate::storage::download_preview_mp4_path();
+    let _ = fs::remove_file(&out);
+    let out_str = out.to_str().expect("chemin UTF-8");
+    let output = process::run_ffmpeg(&[
+        "-y",
+        "-i",
+        source,
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        out_str,
+    ])?;
+    ensure_success(&output)?;
+    Ok(out.to_string_lossy().into_owned())
+}
+
 /** WebView2 ne lit pas le MKV yt-dlp : remux copie vers MP4. */
 pub fn remux_preview_mp4(mkv_path: &str) -> Result<String> {
     let out = crate::storage::preview_mp4_path();
@@ -214,8 +339,12 @@ pub fn remux_preview_mp4(mkv_path: &str) -> Result<String> {
         "-y",
         "-i",
         mkv_path,
-        "-c",
+        "-c:v",
         "copy",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
         "-movflags",
         "+faststart",
         out_str,
@@ -242,6 +371,132 @@ fn parse_first_float(bytes: &[u8]) -> Option<f64> {
     let text = String::from_utf8_lossy(bytes);
     text.lines()
         .find_map(|line| line.trim().parse::<f64>().ok())
+}
+
+/// ffmpeg en processus suivi : stdin/out drainés en threads, kill possible via `cancel`.
+/// `on_media_time` reçoit les secondes de média encodées (depuis `time=` du stderr).
+fn run_ffmpeg_cancellable(
+    args: &[&str],
+    cancel: &AtomicBool,
+    child_slot: &Arc<Mutex<Option<Child>>>,
+    on_media_time: Option<Arc<dyn Fn(f64) + Send + Sync>>,
+) -> Result<Output> {
+    let mut child = process::spawn_ffmpeg(args)?;
+    let pid = child.id();
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    {
+        let mut guard = child_slot
+            .lock()
+            .map_err(|_| DollytError::FfmpegFailed("verrou job".into()))?;
+        *guard = Some(child);
+    }
+    let read_out = thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(mut r) = stdout {
+            let _ = r.read_to_end(&mut buf);
+        }
+        buf
+    });
+    let read_err = thread::spawn(move || read_ffmpeg_stderr(stderr, on_media_time));
+
+    let status = loop {
+        if cancel.load(Ordering::SeqCst) {
+            process::kill_process_tree(pid);
+            if let Ok(mut guard) = child_slot.lock()
+                && let Some(mut child) = guard.take()
+            {
+                let _ = child.wait();
+            }
+            let _ = read_out.join();
+            let _ = read_err.join();
+            return Err(DollytError::Cancelled);
+        }
+        let polled = {
+            let mut guard = child_slot
+                .lock()
+                .map_err(|_| DollytError::FfmpegFailed("verrou job".into()))?;
+            match guard.as_mut() {
+                Some(child) => child.try_wait().map_err(DollytError::from),
+                None => {
+                    return Err(DollytError::FfmpegFailed("processus absent".into()));
+                }
+            }
+        }?;
+        match polled {
+            Some(status) => {
+                if let Ok(mut guard) = child_slot.lock() {
+                    guard.take();
+                }
+                break status;
+            }
+            None => thread::sleep(Duration::from_millis(100)),
+        }
+    };
+
+    let stdout = read_out.join().unwrap_or_default();
+    let stderr = read_err.join().unwrap_or_default();
+    Ok(Output {
+        status,
+        stdout,
+        stderr,
+    })
+}
+
+/// Lit stderr par blocs, remonte `time=` (secondes de média) et garde le texte complet.
+fn read_ffmpeg_stderr(
+    stderr: Option<std::process::ChildStderr>,
+    on_media_time: Option<Arc<dyn Fn(f64) + Send + Sync>>,
+) -> Vec<u8> {
+    let mut full = Vec::new();
+    let Some(mut r) = stderr else {
+        return full;
+    };
+    let mut chunk = [0u8; 8192];
+    let mut tail: Vec<u8> = Vec::new();
+    loop {
+        match r.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                full.extend_from_slice(&chunk[..n]);
+                if let Some(cb) = &on_media_time {
+                    let mut data = tail.clone();
+                    data.extend_from_slice(&chunk[..n]);
+                    if let Some(secs) = last_ffmpeg_time(&data) {
+                        cb(secs);
+                    }
+                    let keep = data.len().min(64);
+                    tail = data[data.len() - keep..].to_vec();
+                }
+            }
+        }
+    }
+    full
+}
+
+/// Dernier `time=HH:MM:SS.ss` trouvé dans le tampon.
+fn last_ffmpeg_time(data: &[u8]) -> Option<f64> {
+    let text = String::from_utf8_lossy(data);
+    let mut found = None;
+    for (idx, _) in text.match_indices("time=") {
+        let rest = &text[idx + 5..];
+        let end = rest
+            .find(|c: char| c.is_whitespace() || c == '\r' || c == '\n')
+            .unwrap_or(rest.len());
+        if let Some(secs) = parse_hms(&rest[..end]) {
+            found = Some(secs);
+        }
+    }
+    found
+}
+
+fn parse_hms(s: &str) -> Option<f64> {
+    let s = s.trim().trim_start_matches('-');
+    let mut it = s.split(':');
+    let h: f64 = it.next()?.parse().ok()?;
+    let m: f64 = it.next()?.parse().ok()?;
+    let sec: f64 = it.next()?.parse().ok()?;
+    Some(h * 3600.0 + m * 60.0 + sec)
 }
 
 fn ensure_success(output: &std::process::Output) -> Result<()> {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getSettings,
   saveSettings,
@@ -14,6 +14,7 @@ import { Switch } from "../components/Toggle";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { useDollytStore } from "../store";
 import { setLocale, t, useLocale } from "../i18n";
+import { setLeaveGuard } from "../lib/leaveGuard";
 
 const DEFAULTS: Settings = {
   exportDir: "",
@@ -38,6 +39,11 @@ export function SettingsView() {
   const locale = useLocale();
   const setSelectedPresetId = useDollytStore((s) => s.setSelectedPresetId);
   const [draft, setDraft] = useState<Settings>(DEFAULTS);
+  const [saved, setSaved] = useState<Settings>(DEFAULTS);
+  const draftRef = useRef(draft);
+  const savedRef = useRef(saved);
+  draftRef.current = draft;
+  savedRef.current = saved;
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [devGateOpen, setDevGateOpen] = useState(false);
@@ -50,7 +56,7 @@ export function SettingsView() {
       .then((s) => {
         if (!s) return;
         const presetId = s.defaultPresetId || "tiktok";
-        setDraft({
+        const loaded: Settings = {
           ...DEFAULTS,
           ...s,
           autoUpdateYtdlp: s.autoUpdateYtdlp ?? false,
@@ -66,10 +72,27 @@ export function SettingsView() {
           devX264Preset: s.devX264Preset ?? "",
           autoUpdateApp: s.autoUpdateApp ?? false,
           ignoredUpdateVersion: s.ignoredUpdateVersion ?? null,
-        });
+        };
+        setDraft(loaded);
+        setSaved(loaded);
         setSelectedPresetId(presetId);
       })
       .catch((e) => setMsg(String(e)));
+  }, [setSelectedPresetId]);
+
+  useEffect(() => {
+    setLeaveGuard({
+      isDirty: () =>
+        JSON.stringify(draftRef.current) !== JSON.stringify(savedRef.current),
+      save: async () => {
+        const d = draftRef.current;
+        await saveSettings(d);
+        setSaved({ ...d });
+        setSelectedPresetId(d.defaultPresetId);
+      },
+      discard: () => setDraft({ ...savedRef.current }),
+    });
+    return () => setLeaveGuard(null);
   }, [setSelectedPresetId]);
 
   function onDeveloperMode(next: boolean) {
@@ -90,6 +113,7 @@ export function SettingsView() {
     setMsg("");
     try {
       await saveSettings(draft);
+      setSaved({ ...draft });
       setSelectedPresetId(draft.defaultPresetId);
       setMsg("Enregistré");
     } catch (e) {
@@ -107,12 +131,12 @@ export function SettingsView() {
       if (result?.alreadyLatest) {
         setNotice({
           title: "yt-dlp",
-          message: "Tu as déjà la dernière version yt-dlp listée sur GitHub.",
+          message: "yt-dlp est déjà la version vérifiée par Dollyt.",
         });
       } else {
         setNotice({
           title: "yt-dlp",
-          message: "yt-dlp est à jour sur ton disque.",
+          message: "yt-dlp a été revérifié et est à jour sur ton disque.",
         });
       }
     } catch (e) {
@@ -295,7 +319,7 @@ export function SettingsView() {
             </SettingRow>
             <SettingRow
               label="Version de yt-dlp"
-              hint="Le fichier vient uniquement de la release GitHub officielle et son SHA-256 est vérifié avant remplacement."
+              hint="Le fichier vient uniquement de la release GitHub officielle épinglée par Dollyt, SHA-256 vérifié."
             >
               <PrimaryButton
                 variant="default"
@@ -303,7 +327,7 @@ export function SettingsView() {
                 onClick={onUpdateYtdlp}
                 disabled={busy}
               >
-                Vérifier maintenant
+                Revérifier yt-dlp
               </PrimaryButton>
             </SettingRow>
           </div>

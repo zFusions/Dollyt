@@ -81,6 +81,11 @@ const messages = {
     noUpdateSub: "Tu as déjà la dernière version.",
     updateError: "Erreur lors de la vérification",
     installingUpdate: "Installation de la mise à jour…",
+    unsavedTitle: "Modifications non enregistrées",
+    unsavedMessage: "Enregistre ou annule tes changements avant de changer de page.",
+    unsavedSaveLeave: "Enregistrer et partir",
+    unsavedDiscard: "Annuler les modifications",
+    unsavedStay: "Rester",
   },
   en: {
     homeTitle: "From YouTube URL to clip, without the hassle",
@@ -147,6 +152,11 @@ const messages = {
     noUpdateSub: "You already have the latest version.",
     updateError: "Error checking for updates",
     installingUpdate: "Installing update…",
+    unsavedTitle: "Unsaved changes",
+    unsavedMessage: "Save or discard your changes before leaving this page.",
+    unsavedSaveLeave: "Save and leave",
+    unsavedDiscard: "Discard changes",
+    unsavedStay: "Stay",
   },
 } as const;
 

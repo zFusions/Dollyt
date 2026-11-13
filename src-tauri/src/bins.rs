@@ -26,10 +26,9 @@ pub struct ToolPaths {
 
 static TOOLS: OnceLock<ToolPaths> = OnceLock::new();
 
-pub fn tools() -> &'static ToolPaths {
-    TOOLS
-        .get()
-        .expect("binaires non initialisés : ensure_tools doit être appelé au démarrage")
+/// `None` si les binaires n'ont pas pu être installés (pas de réseau au 1er lancement, etc.).
+pub fn tools() -> Option<&'static ToolPaths> {
+    TOOLS.get()
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -190,6 +189,7 @@ fn download_ytdlp_release(dest: &Path) -> Result<()> {
 
 fn download_bytes(url: &str, dest: &Path) -> Result<()> {
     let mut reader = ureq::get(url)
+        .timeout(std::time::Duration::from_secs(300))
         .call()
         .map_err(|e| DollytError::BinDownload(e.to_string()))?
         .into_reader();

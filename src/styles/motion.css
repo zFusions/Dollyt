@@ -141,7 +141,35 @@
     transform: translateY(1px);
   }
 
+  @keyframes dollyt-unsaved-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-5px);
+    }
+    40% {
+      transform: translateX(5px);
+    }
+    60% {
+      transform: translateX(-3px);
+    }
+    80% {
+      transform: translateX(3px);
+    }
+  }
+
+  body.unsaved-guard {
+    outline: 1px solid var(--safelight);
+    outline-offset: -1px;
+    animation: dollyt-unsaved-shake 420ms var(--ease-out);
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    body.unsaved-guard {
+      animation: none;
+    }
     .view-stage,
     .page .panel,
     .page > header,

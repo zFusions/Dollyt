@@ -13,7 +13,7 @@ import { WindowControls } from "../components/WindowChrome";
 import { clampTime, snapToFrame } from "../lib/time";
 import { presetShortLabel } from "../lib/presetsUi";
 import { CustomSelect } from "../components/ui/CustomSelect";
-import { validateYoutubeUrl } from "../lib/validateUrl";
+import { normalizeYoutubeUrl, validateYoutubeUrl } from "../lib/validateUrl";
 import { useDollytStore } from "../store";
 import { t } from "../i18n";
 
@@ -52,6 +52,11 @@ export function HomeView() {
       setError(invalid);
       return;
     }
+    const target = normalizeYoutubeUrl(url);
+    if (!target) {
+      setError("Ce lien n’est pas valide.");
+      return;
+    }
     if (!exportFullVideo && endSecs <= startSecs) {
       setError("La fin doit être après le début.");
       return;
@@ -71,11 +76,17 @@ export function HomeView() {
         resetDownload();
         return;
       }
-      const { video: loaded, storyboard } = await loadVideo(url);
+      const { video: loaded, storyboard } = await loadVideo(target);
       setVideo(loaded);
       setStoryboard(storyboard);
       const fps = loaded.previewFps ?? 30;
       const dur = loaded.durationSecs || 0;
+      if (dur <= 0) {
+        setError("Durée de la vidéo inconnue (direct ou indisponible).");
+        setBusy(false);
+        useDollytStore.getState().finishDownload(false, "Durée inconnue.");
+        return;
+      }
       const start = exportFullVideo
         ? 0
         : snapToFrame(clampTime(startSecs, 0, dur), fps);
@@ -84,7 +95,7 @@ export function HomeView() {
         : snapToFrame(clampTime(endSecs, start + 1 / fps, dur), fps);
       if (!exportFullVideo) setRangeSecs(start, end);
       await startCutJob({
-        rawUrl: url,
+        rawUrl: target,
         formatId: loaded.exportFormatId,
         startSecs: start,
         endSecs: end,

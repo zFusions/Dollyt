@@ -202,16 +202,6 @@ export async function updateYtdlp(): Promise<YtdlpUpdateResult | null> {
   return invoke<YtdlpUpdateResult>("update_ytdlp");
 }
 
-export async function openYoutubeLogin(): Promise<void> {
-  if (!isTauri()) return;
-  await invoke("open_youtube_login");
-}
-
-export async function closeYoutubeLogin(): Promise<void> {
-  if (!isTauri()) return;
-  await invoke("close_youtube_login");
-}
-
 export async function probeYoutubeSession(): Promise<void> {
   if (!isTauri()) return;
   await invoke("probe_youtube_session");

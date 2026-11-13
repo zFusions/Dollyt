@@ -208,23 +208,59 @@ pub fn resolve_export_path(
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty())
         .unwrap_or("clip");
-    dir.join(format!("{filename}.{ext}"))
+    let ext = format!(".{ext}");
+    let mut candidate = dir.join(format!("{filename}{ext}"));
+    let mut suffix = 2;
+    while candidate.exists() {
+        candidate = dir.join(format!("{filename}-{suffix}{ext}"));
+        suffix += 1;
+    }
+    candidate
 }
 
 fn sanitize_filename(input: &str) -> String {
     let mut out = String::new();
     for ch in input.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+        if ch.is_alphanumeric() || ch == '-' || ch == '_' {
             out.push(ch);
         } else if ch.is_whitespace() {
             out.push('_');
         }
     }
     if out.is_empty() {
-        "clip".into()
-    } else {
-        out.chars().take(80).collect()
+        out = "clip".into();
     }
+    // Noms réservés Windows (CON, NUL, COM1…) : Windows refuse de créer le fichier.
+    let upper = out.to_ascii_uppercase();
+    let reserved = matches!(
+        upper.as_str(),
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
+    );
+    if reserved {
+        out = format!("_{out}");
+    }
+    out.chars().take(80).collect()
 }
 
 #[cfg(test)]

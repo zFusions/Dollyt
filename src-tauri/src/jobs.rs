@@ -1,6 +1,8 @@
 use crate::ffmpeg;
+use crate::format;
 use crate::log;
 use crate::presets;
+use crate::process;
 use crate::settings;
 use crate::storage;
 use crate::url;
@@ -11,11 +13,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::{AppHandle, Emitter, State};
-
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
-const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,7 +60,7 @@ pub fn cancel_job(state: State<'_, Arc<JobsState>>) -> Result<(), String> {
     };
     job.cancel.store(true, Ordering::SeqCst);
     if let Some(child) = job.child.lock().map_err(|e| e.to_string())?.take() {
-        kill_process_tree(child.id());
+        process::kill_process_tree(child.id());
     }
     log::log_line("job annulé");
     Ok(())
@@ -112,12 +109,7 @@ pub fn start_cut_job(
             &preset_id,
         );
         let (ok, message, output_path, preview_path) = match result {
-            Ok((path, preview)) => (
-                true,
-                "Extrait exporté.".to_string(),
-                Some(path),
-                Some(preview),
-            ),
+            Ok((path, preview)) => (true, "Extrait exporté.".to_string(), Some(path), preview),
             Err(e) => (false, e, None, None),
         };
         let _ = app2.emit(
@@ -150,7 +142,7 @@ fn run_cut_job(
     start_secs: f64,
     end_secs: f64,
     preset_id: &str,
-) -> Result<(String, String), String> {
+) -> Result<(String, Option<String>), String> {
     emit(app, job_id, "validation", 5)?;
     let url = url::validate_youtube_url(raw_url).map_err(|e| e.to_string())?;
     if cancel.load(Ordering::SeqCst) {
@@ -161,12 +153,22 @@ fn run_cut_job(
     if app_settings.export_dir.trim().is_empty() {
         return Err("Choisis d’abord un dossier de sortie dans Paramètres.".into());
     }
-    let info = ytdlp::fetch_video_info(&url).map_err(|e| e.to_string())?;
-    let dl_format = if preset_id == "quality-max" {
-        ytdlp::resolve_export_format(&url, "").map_err(|e| e.to_string())?
-    } else {
-        ytdlp::resolve_export_format(&url, format_id).map_err(|e| e.to_string())?
-    };
+    let meta = ytdlp::fetch_metadata_json(&url).map_err(|e| e.to_string())?;
+    let info = ytdlp::video_info_from_json(&meta).map_err(|e| e.to_string())?;
+    let formats = meta
+        .get("formats")
+        .and_then(|v| v.as_array())
+        .map(|v| v.as_slice())
+        .unwrap_or(&[]);
+    let dl_format = format::pick_download_formats(formats)
+        .map(|s| format::to_ytdlp_format(&s))
+        .unwrap_or_else(|| {
+            if preset_id == "quality-max" {
+                String::new()
+            } else {
+                format_id.to_string()
+            }
+        });
     let app_dl = app.clone();
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
         let mapped = 20u8.saturating_add(((raw as u16).saturating_mul(48) / 100) as u8);
@@ -187,16 +189,38 @@ fn run_cut_job(
         return Err("annulé".into());
     }
     emit(app, job_id, "encode", 70)?;
-    let cut = ffmpeg::export_to_settings_path(
+    let app_enc = app.clone();
+    let on_encode: ffmpeg::EncodeProgressFn = Arc::new(move |frac: f64| {
+        let pct = 70u8.saturating_add((frac.clamp(0.0, 1.0) * 25.0) as u8);
+        let _ = emit(&app_enc, job_id, "encode", pct);
+    });
+    let cut = ffmpeg::export_to_settings_path_cancellable(
         &download.path,
         &info.title,
         start_secs,
         end_secs,
         &preset,
         &app_settings,
+        cancel,
+        child_slot,
+        Some(on_encode),
     )
     .map_err(|e| e.to_string())?;
-    let preview_path = storage::copy_download_preview(&cut.path).map_err(|e| e.to_string())?;
+    if cancel.load(Ordering::SeqCst) {
+        return Err("annulé".into());
+    }
+    let is_mp4 = std::path::Path::new(&cut.path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("mp4"));
+    let preview_path = if is_mp4 {
+        storage::copy_download_preview(&cut.path).ok()
+    } else {
+        ffmpeg::remux_download_preview(&cut.path).ok()
+    };
+    if preview_path.is_none() {
+        log::log_line("preview indisponible pour l'export");
+    }
     emit(app, job_id, "done", 100)?;
     log::log_line(&format!(
         "job {job_id} ok preset={preset_id} download_ms={} encode_ms={}",
@@ -215,12 +239,4 @@ fn emit(app: &AppHandle, job_id: u64, stage: &str, percent: u8) -> Result<(), St
         },
     )
     .map_err(|e| e.to_string())
-}
-
-fn kill_process_tree(pid: u32) {
-    let mut cmd = std::process::Command::new("taskkill");
-    cmd.args(["/PID", &pid.to_string(), "/T", "/F"]);
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let _ = cmd.status();
 }
