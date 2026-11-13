@@ -12,19 +12,14 @@ pub struct Settings {
     pub hardware_encode: bool,
     #[serde(default)]
     pub auto_update_ytdlp: bool,
-    /// firefox uniquement (Chrome/Edge verrouillent la base sous Windows).
     #[serde(default)]
     pub ytdlp_cookies_browser: String,
-    /// Fichier Netscape cookies.txt, prioritaire sur le navigateur.
     #[serde(default)]
     pub ytdlp_cookies_file: String,
-    #[serde(default)]
-    pub youtube_onboarding_done: bool,
     #[serde(default = "default_export_preset_id")]
     pub default_preset_id: String,
     #[serde(default)]
     pub developer_mode: bool,
-    /// Surcharge CRF (0–51) si mode développeur actif.
     #[serde(default)]
     pub dev_crf: Option<u8>,
     #[serde(default)]
@@ -54,7 +49,6 @@ impl Default for Settings {
             auto_update_ytdlp: false,
             ytdlp_cookies_browser: String::new(),
             ytdlp_cookies_file: String::new(),
-            youtube_onboarding_done: true,
             default_preset_id: default_export_preset_id(),
             developer_mode: false,
             dev_crf: None,
@@ -230,7 +224,6 @@ fn sanitize_filename(input: &str) -> String {
     if out.is_empty() {
         out = "clip".into();
     }
-    // Noms réservés Windows (CON, NUL, COM1…) : Windows refuse de créer le fichier.
     let upper = out.to_ascii_uppercase();
     let reserved = matches!(
         upper.as_str(),

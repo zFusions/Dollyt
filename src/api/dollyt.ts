@@ -37,7 +37,6 @@ export type Settings = {
   /** firefox | "" */
   ytdlpCookiesBrowser: string;
   ytdlpCookiesFile: string;
-  youtubeOnboardingDone: boolean;
   defaultPresetId: string;
   developerMode: boolean;
   devCrf: number | null;
@@ -107,11 +106,6 @@ export async function startLocalPreview(
     startSecs: startSecs ?? null,
     full,
   });
-}
-
-export async function getStoryboard(rawUrl: string): Promise<StoryboardInfo> {
-  if (!isTauri()) return {};
-  return invoke<StoryboardInfo>("get_storyboard", { rawUrl });
 }
 
 export type TimelineFilmstrip = { frames: string[] };
@@ -200,16 +194,6 @@ export type YtdlpUpdateResult = { alreadyLatest: boolean };
 export async function updateYtdlp(): Promise<YtdlpUpdateResult | null> {
   if (!isTauri()) return { alreadyLatest: true };
   return invoke<YtdlpUpdateResult>("update_ytdlp");
-}
-
-export async function probeYoutubeSession(): Promise<void> {
-  if (!isTauri()) return;
-  await invoke("probe_youtube_session");
-}
-
-export async function pickCookiesFile(): Promise<string | null> {
-  if (!isTauri()) return null;
-  return invoke<string | null>("pick_cookies_file");
 }
 
 export async function pickExportDirectory(): Promise<string | null> {

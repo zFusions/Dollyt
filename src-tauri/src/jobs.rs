@@ -155,6 +155,12 @@ fn run_cut_job(
     }
     let meta = ytdlp::fetch_metadata_json(&url).map_err(|e| e.to_string())?;
     let info = ytdlp::video_info_from_json(&meta).map_err(|e| e.to_string())?;
+    if end_secs > info.duration_secs + 0.5 {
+        return Err(format!(
+            "La vidéo fait {:.0}s — l'extrait demandé (jusqu'à {:.0}s) dépasse cette durée.",
+            info.duration_secs, end_secs
+        ));
+    }
     let formats = meta
         .get("formats")
         .and_then(|v| v.as_array())
