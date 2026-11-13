@@ -39,6 +39,37 @@ export function formatRulerLabel(secs: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/** Parse "MM:SS", "HH:MM:SS" ou secondes brutes en secondes. */
+export function parseTimeInput(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+  if (match) {
+    const hours = match[1] ? parseInt(match[1], 10) : 0;
+    const minutes = parseInt(match[2], 10);
+    const seconds = parseFloat(match[3]);
+    if (minutes > 59 || seconds > 59.999) return null;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  const secs = parseFloat(trimmed);
+  if (isNaN(secs) || secs < 0) return null;
+  return secs;
+}
+
+/** Formate secondes en MM:SS ou HH:MM:SS selon la durée. */
+export function formatTimeInput(secs: number): string {
+  const t = Math.max(0, secs);
+  if (t >= 3600) {
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    const s = Math.floor(t % 60);
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 /** Pas de graduation lisible pour une fenêtre timeline (secondes). */
 export function rulerMinorStep(viewSpan: number): number {
   if (viewSpan <= 0) return 1;

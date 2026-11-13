@@ -22,7 +22,6 @@ pub struct CutResult {
     pub elapsed_ms: u64,
 }
 
-/// Fraction 0..1 de l'encodage écoulée (estimée via `time=` de ffmpeg).
 pub type EncodeProgressFn = Arc<dyn Fn(f64) + Send + Sync>;
 
 #[cfg(test)]
@@ -119,7 +118,6 @@ fn export_section_impl(
         .video_max_bitrate_kbps
         .map(|k| format!("{}k", k.saturating_mul(2)));
     let stream_copy = preset.video_codec == "copy" && preset.audio_codec == "copy";
-    // -vf est incompatible avec -c:v copy même si l'audio est ré-encodé.
     let vf = if preset.video_codec == "copy" {
         None
     } else {
@@ -144,7 +142,6 @@ fn export_section_impl(
         args.extend(["-c:v", vcodec.as_str()]);
         if vcodec == "libx264" || vcodec == "h264_nvenc" {
             if let Some(crf) = &crf {
-                // NVENC veut -cq, x264 veut -crf.
                 args.extend([
                     if vcodec == "h264_nvenc" {
                         "-cq"
@@ -309,7 +306,16 @@ pub fn file_duration_secs(path: &str) -> Result<f64> {
 
 /** WebView2 ne lit pas le MKV : remux copie vers MP4 pour la preview. */
 pub fn remux_download_preview(source: &str) -> Result<String> {
-    let out = crate::storage::download_preview_mp4_path();
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let out = crate::storage::temp_cache_root()
+        .join("download-preview")
+        .join(format!("preview-{timestamp}.mp4"));
+    if let Some(parent) = out.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
     let _ = fs::remove_file(&out);
     let out_str = out.to_str().expect("chemin UTF-8");
     let output = process::run_ffmpeg(&[
@@ -373,8 +379,6 @@ fn parse_first_float(bytes: &[u8]) -> Option<f64> {
         .find_map(|line| line.trim().parse::<f64>().ok())
 }
 
-/// ffmpeg en processus suivi : stdin/out drainés en threads, kill possible via `cancel`.
-/// `on_media_time` reçoit les secondes de média encodées (depuis `time=` du stderr).
 fn run_ffmpeg_cancellable(
     args: &[&str],
     cancel: &AtomicBool,
@@ -443,7 +447,6 @@ fn run_ffmpeg_cancellable(
     })
 }
 
-/// Lit stderr par blocs, remonte `time=` (secondes de média) et garde le texte complet.
 fn read_ffmpeg_stderr(
     stderr: Option<std::process::ChildStderr>,
     on_media_time: Option<Arc<dyn Fn(f64) + Send + Sync>>,
@@ -474,7 +477,6 @@ fn read_ffmpeg_stderr(
     full
 }
 
-/// Dernier `time=HH:MM:SS.ss` trouvé dans le tampon.
 fn last_ffmpeg_time(data: &[u8]) -> Option<f64> {
     let text = String::from_utf8_lossy(data);
     let mut found = None;

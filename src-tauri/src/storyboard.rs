@@ -1,4 +1,3 @@
-use crate::error::Result;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -11,11 +10,6 @@ pub struct StoryboardInfo {
     pub interval_secs: Option<f64>,
     pub columns: Option<u32>,
     pub rows: Option<u32>,
-}
-
-pub fn fetch_storyboard(url: &str) -> Result<StoryboardInfo> {
-    let value = crate::ytdlp::fetch_metadata_json(url)?;
-    Ok(parse_storyboard(&value))
 }
 
 pub fn parse_storyboard(meta: &Value) -> StoryboardInfo {

@@ -1,5 +1,4 @@
 use crate::bins;
-use crate::error::DollytError;
 use crate::jobs::{JobsState, start_cut_job};
 use crate::log;
 use crate::presets::{self, Preset};
@@ -7,7 +6,6 @@ use crate::settings::{self, Settings};
 use crate::storyboard::{self, StoryboardInfo};
 use crate::url;
 use crate::ytdlp::{self, VideoInfo};
-use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,15 +15,6 @@ use tauri::{AppHandle, Emitter, State};
 fn filmstrip_gate() -> &'static Mutex<()> {
     static GATE: OnceLock<Mutex<()>> = OnceLock::new();
     GATE.get_or_init(|| Mutex::new(()))
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BinsStatus {
-    pub ytdlp: String,
-    pub ffmpeg: String,
-    pub ffprobe: String,
-    pub deno: String,
 }
 
 fn preview_job_cancel() -> &'static Mutex<Option<Arc<AtomicBool>>> {
@@ -54,7 +43,6 @@ pub struct LoadVideoResponse {
 pub struct PreviewLocalPayload {
     pub preview_url: String,
     pub preview_file_duration_secs: Option<f64>,
-    /// Instant YouTube correspondant au début du fichier local.
     pub preview_start_secs: f64,
 }
 
@@ -102,7 +90,6 @@ pub fn reveal_file(path: String) -> Result<(), String> {
     result.map(|_| ()).map_err(|error| error.to_string())
 }
 
-/// Preview fichier local en arrière-plan (ne bloque pas l’UI).
 #[tauri::command]
 pub fn cancel_local_preview() -> Result<(), String> {
     cancel_running_preview();
@@ -206,19 +193,6 @@ pub fn start_local_preview(
 }
 
 #[tauri::command]
-pub fn fetch_metadata(raw_url: String) -> Result<serde_json::Value, String> {
-    let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-    ytdlp::fetch_metadata_json(&url).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_storyboard(raw_url: String) -> Result<StoryboardInfo, String> {
-    let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-    storyboard::fetch_storyboard(&url).map_err(|e| e.to_string())
-}
-
-/// Vignettes timeline depuis le fichier local (FFmpeg + cache disque).
-#[tauri::command]
 pub async fn resolve_preview_url(raw_url: String, format_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
@@ -298,33 +272,9 @@ pub fn list_presets() -> Result<Vec<Preset>, String> {
 }
 
 #[tauri::command]
-pub fn save_preset(preset: Preset) -> Result<(), String> {
-    presets::save_user(&preset).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_preset(id: String) -> Result<Preset, String> {
-    presets::get_builtin(&id)
-        .or_else(|_| {
-            presets::list_user()?
-                .into_iter()
-                .find(|p| p.id == id)
-                .ok_or_else(|| DollytError::PresetNotFound(id.clone()))
-        })
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn bins_status() -> Result<BinsStatus, String> {
-    let Some(t) = bins::tools() else {
-        return Err("Les binaires Dollyt ne sont pas encore installés.".into());
-    };
-    Ok(BinsStatus {
-        ytdlp: t.ytdlp.display().to_string(),
-        ffmpeg: t.ffmpeg.display().to_string(),
-        ffprobe: t.ffprobe.display().to_string(),
-        deno: t.deno.display().to_string(),
-    })
+pub fn pick_export_directory() -> Result<Option<String>, String> {
+    let path = rfd::FileDialog::new().pick_folder();
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]

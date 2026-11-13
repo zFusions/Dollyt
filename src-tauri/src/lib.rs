@@ -13,7 +13,6 @@ mod storage;
 mod storyboard;
 mod url;
 mod win_priority;
-mod youtube_session;
 mod ytdlp;
 
 use jobs::JobsState;
@@ -23,7 +22,6 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(Arc::new(JobsState::default()))
@@ -60,23 +58,16 @@ pub fn run() {
             commands::resolve_preview_url,
             commands::start_local_preview,
             commands::cancel_local_preview,
-            commands::fetch_metadata,
-            commands::get_storyboard,
             commands::get_timeline_filmstrip,
             commands::get_timeline_filmstrip_master,
             commands::release_preview_cache,
             commands::get_settings,
             commands::save_settings_cmd,
             commands::list_presets,
-            commands::get_preset,
-            commands::save_preset,
-            commands::bins_status,
             commands::update_ytdlp,
+            commands::pick_export_directory,
             commands::start_cut_job_command,
             jobs::cancel_job,
-            youtube_session::probe_youtube_session,
-            youtube_session::pick_cookies_file,
-            youtube_session::pick_export_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

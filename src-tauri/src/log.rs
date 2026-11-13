@@ -53,7 +53,6 @@ fn time_text() -> String {
     )
 }
 
-/// Jours depuis l'époque → date grégorienne (algorithme civil, sans dépendance).
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;

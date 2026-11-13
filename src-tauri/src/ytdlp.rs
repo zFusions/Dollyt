@@ -34,11 +34,6 @@ pub struct DownloadResult {
     pub elapsed_ms: u64,
 }
 
-/// Test rapide sans lien utilisateur (Me at the zoo).
-pub fn probe_youtube() -> Result<Value> {
-    fetch_metadata_json("https://www.youtube.com/watch?v=jNQXAC9IVRw")
-}
-
 pub fn fetch_metadata_json(url: &str) -> Result<Value> {
     let output = process::run_ytdlp(&["-J", url])?;
     if !output.status.success() {
@@ -229,15 +224,17 @@ pub fn download_section_cancellable(
     let mut child = process::spawn_ytdlp(args)?;
     let stderr = child.stderr.take();
     let pct = Arc::new(AtomicU8::new(0));
+    let stderr_tail = Arc::new(Mutex::new(Vec::<String>::new()));
     if let Some(stderr) = stderr {
         let pct_bg = Arc::clone(&pct);
-        thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg));
+        let tail_bg = Arc::clone(&stderr_tail);
+        thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg, tail_bg));
     }
 
     if let Ok(mut guard) = child_slot.lock() {
         *guard = Some(child);
     }
-    wait_child_slot(child_slot, cancel, &pct, on_progress)?;
+    wait_child_slot(child_slot, cancel, &pct, stderr_tail, on_progress)?;
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
     if !out.exists() {
         return Err(DollytError::YtdlpFailed(
@@ -262,11 +259,24 @@ fn valid_format_selector(value: &str) -> bool {
         })
 }
 
-fn read_ytdlp_stderr(stderr: std::process::ChildStderr, pct: Arc<AtomicU8>) {
+fn read_ytdlp_stderr(
+    stderr: std::process::ChildStderr,
+    pct: Arc<AtomicU8>,
+    tail: Arc<Mutex<Vec<String>>>,
+) {
     let reader = BufReader::new(stderr);
     for line in reader.lines().map_while(|l| l.ok()) {
         if let Some(value) = parse_ytdlp_percent(&line) {
             pct.store(value, Ordering::Relaxed);
+        }
+        if let Ok(mut t) = tail.lock() {
+            let line = line.trim().to_string();
+            if !line.is_empty() {
+                t.push(line);
+                if t.len() > 12 {
+                    t.remove(0);
+                }
+            }
         }
     }
 }
@@ -287,6 +297,7 @@ fn wait_child_slot(
     child_slot: &Arc<Mutex<Option<Child>>>,
     cancel: &AtomicBool,
     pct: &AtomicU8,
+    stderr_tail: Arc<Mutex<Vec<String>>>,
     on_progress: Option<ProgressFn>,
 ) -> Result<()> {
     let mut last_emit = Instant::now();
@@ -329,9 +340,19 @@ fn wait_child_slot(
                 return Ok(());
             }
             Some(_) => {
-                return Err(DollytError::YtdlpFailed(
-                    "yt-dlp s'est terminé avec une erreur".into(),
-                ));
+                let detail = stderr_tail
+                    .lock()
+                    .ok()
+                    .map(|t| {
+                        let joined = t.join("\n");
+                        if joined.is_empty() {
+                            "yt-dlp s'est terminé avec une erreur".to_string()
+                        } else {
+                            ytdlp_user_message(&joined)
+                        }
+                    })
+                    .unwrap_or_else(|| "yt-dlp s'est terminé avec une erreur".into());
+                return Err(DollytError::YtdlpFailed(detail));
             }
         }
     }

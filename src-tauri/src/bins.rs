@@ -26,7 +26,6 @@ pub struct ToolPaths {
 
 static TOOLS: OnceLock<ToolPaths> = OnceLock::new();
 
-/// `None` si les binaires n'ont pas pu être installés (pas de réseau au 1er lancement, etc.).
 pub fn tools() -> Option<&'static ToolPaths> {
     TOOLS.get()
 }

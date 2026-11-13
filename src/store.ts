@@ -96,7 +96,43 @@ type DollytState = {
   goEditor: () => void;
 };
 
-export const useDollytStore = create<DollytState>((set) => ({
+const PROGRESS_TICK_MS = 100;
+const PROGRESS_STEP = 2;
+let progressTarget = 0;
+let progressTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopProgressPump() {
+  if (progressTimer !== null) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+}
+
+export const useDollytStore = create<DollytState>((set, get) => {
+  const pumpProgress = () => {
+    const current = get().jobPercent;
+    const gap = progressTarget - current;
+    if (gap <= 0.01) {
+      if (current !== progressTarget) set({ jobPercent: progressTarget });
+      stopProgressPump();
+      return;
+    }
+    set({
+      jobPercent: Math.min(progressTarget, current + Math.min(PROGRESS_STEP, gap)),
+    });
+  };
+  const ensureProgressPump = () => {
+    if (progressTimer === null) {
+      progressTimer = setInterval(pumpProgress, PROGRESS_TICK_MS);
+    }
+  };
+  const resetProgress = (value: number) => {
+    progressTarget = value;
+    stopProgressPump();
+    set({ jobPercent: value });
+  };
+
+  return {
   screen: "home",
   url: "",
   video: null,
@@ -136,26 +172,35 @@ export const useDollytStore = create<DollytState>((set) => ({
   setRangeSecs: (startSecs, endSecs) => set({ startSecs, endSecs }),
   setPlayhead: (playheadSecs) => set({ playheadSecs }),
   setStatus: (status) => set({ status }),
-  setJobPercent: (jobPercent) => set({ jobPercent }),
-  beginDownload: () =>
+  setJobPercent: (jobPercent) => {
+    progressTarget = Math.min(100, Math.max(0, jobPercent));
+    stopProgressPump();
+    set({ jobPercent: progressTarget });
+  },
+  beginDownload: () => {
+    resetProgress(0);
     set({
       downloadState: "loading",
       downloadStage: "Préparation",
       downloadPath: "",
       downloadOutputPath: "",
       status: "",
-      jobPercent: 0,
-    }),
-  setDownloadProgress: (downloadStage, jobPercent) =>
-    set({ downloadState: "loading", downloadStage, jobPercent }),
-  finishDownload: (ok, status, downloadPath = "", downloadOutputPath = "") =>
+    });
+  },
+  setDownloadProgress: (downloadStage, jobPercent) => {
+    progressTarget = Math.min(100, Math.max(progressTarget, jobPercent));
+    ensureProgressPump();
+    set({ downloadState: "loading", downloadStage });
+  },
+  finishDownload: (ok, status, downloadPath = "", downloadOutputPath = "") => {
+    resetProgress(ok ? 100 : 0);
     set({
       downloadState: ok ? "success" : "error",
       status,
       downloadPath,
       downloadOutputPath,
-      jobPercent: ok ? 100 : 0,
-    }),
+    });
+  },
   addHistory: (entry) =>
     set((state) => {
       const history = [
@@ -171,15 +216,16 @@ export const useDollytStore = create<DollytState>((set) => ({
       writeHistory(history);
       return { history };
     }),
-  resetDownload: () =>
+  resetDownload: () => {
+    resetProgress(0);
     set({
       downloadState: "idle",
       downloadStage: "",
       downloadPath: "",
       downloadOutputPath: "",
       status: "",
-      jobPercent: 0,
-    }),
+    });
+  },
   setSelectedPresetId: (selectedPresetId) => set({ selectedPresetId }),
   setExportFullVideo: (exportFullVideo) => set({ exportFullVideo }),
   go: (screen) => {
@@ -188,13 +234,13 @@ export const useDollytStore = create<DollytState>((set) => ({
   },
   goHome: () => {
     void releasePreviewCache().catch(() => {});
+    resetProgress(0);
     set({
       screen: "home",
       url: "",
       video: null,
       storyboard: null,
       status: "",
-      jobPercent: 0,
       downloadState: "idle",
       downloadStage: "",
       downloadPath: "",
@@ -205,4 +251,5 @@ export const useDollytStore = create<DollytState>((set) => ({
     if (EDITOR_QUARANTINED) return;
     set({ screen: "editor" });
   },
-}));
+  };
+});

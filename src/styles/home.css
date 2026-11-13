@@ -66,7 +66,7 @@
       inset 0 1px 0 rgb(255 255 255 / 0.04);
     text-align: left;
   }
-  .download-loading .home-dino {
+  .download-loading .home-snake {
     width: 100%;
     margin: 0 0 28px;
     border: 1px solid rgb(233 225 211 / 0.14);
@@ -76,7 +76,7 @@
       0 12px 26px rgb(0 0 0 / 0.26),
       inset 0 1px 0 rgb(255 255 255 / 0.04);
   }
-  .download-loading .home-dino-hint {
+  .download-loading .home-snake-hint {
     padding: 8px 12px;
     color: var(--fg-3);
     font-family: var(--font-ui);
@@ -84,10 +84,8 @@
     text-align: left;
     letter-spacing: -0.01em;
   }
-  .download-loading .home-dino-canvas {
+  .download-loading .home-snake-canvas {
     width: 100%;
-    height: 112px;
-    image-rendering: pixelated;
   }
   .download-loading-title {
     display: flex;
@@ -763,7 +761,7 @@
       inset 0 0 0 1px color-mix(in srgb, var(--home-red) 50%, var(--line)),
       0 0 0 2px rgb(224 58 30 / 0.15);
   }
-  .home-dino {
+  .home-snake {
     width: min(100%, 360px);
     margin: 14px auto 0;
     border-radius: var(--r-md);
@@ -772,17 +770,19 @@
       inset 0 0 0 1px var(--line),
       0 8px 24px rgb(0 0 0 / 0.35);
   }
-  .home-dino-hint {
+  .home-snake-hint {
     margin: 0;
     padding: 6px 10px;
     text-align: center;
     background: var(--surface-2);
     border-bottom: 1px solid var(--line);
   }
-  .home-dino-canvas {
+  .home-snake-canvas {
     display: block;
     width: 100%;
+    max-width: 100%;
     height: auto;
+    touch-action: none;
   }
 
   .home-clip-row {
@@ -821,6 +821,36 @@
     box-shadow:
       inset 0 0 0 1px color-mix(in srgb, var(--safelight) 55%, var(--line)),
       inset 0 1px 2px rgb(0 0 0 / 0.22);
+  }
+  .time-input-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .time-input-field {
+    width: 2.5rem;
+    min-height: 38px;
+    padding: 8px 6px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: color-mix(in srgb, var(--surface-2) 65%, black);
+    box-shadow:
+      inset 0 2px 4px rgb(0 0 0 / 0.32),
+      inset 0 0 0 1px rgb(255 255 255 / 0.07);
+    font-size: var(--fs-small);
+    color: var(--fg);
+    text-align: center;
+  }
+  .time-input-field:focus {
+    outline: none;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--safelight) 55%, var(--line)),
+      inset 0 1px 2px rgb(0 0 0 / 0.22);
+  }
+  .time-input-sep {
+    color: var(--fg-3);
+    font-size: var(--fs-small);
+    user-select: none;
   }
   .home-submit-label {
     white-space: nowrap;
