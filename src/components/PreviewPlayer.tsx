@@ -30,6 +30,7 @@ export function PreviewPlayer({
   onTimeUpdate,
 }: Props) {
   const [err, setErr] = useState("");
+  const [audible, setAudible] = useState(false);
   const src = previewSrc(previewUrl);
   const showErr = err && !awaitingLocal;
   return (
@@ -53,7 +54,7 @@ export function PreviewPlayer({
         ref={videoRef}
         src={src}
         playsInline
-        muted={streamFallback}
+        muted={!audible}
         preload="auto"
         crossOrigin={streamFallback ? "anonymous" : undefined}
         className="preview-video w-full bg-black"
@@ -65,6 +66,7 @@ export function PreviewPlayer({
         }}
         onLoadedData={() => setErr("")}
         onCanPlay={() => onCanPlay?.()}
+        onPlay={() => setAudible(true)}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 [package]
 name = "dollyt"
-version = "1.0.5"
+version = "1.0.0"
 description = "Dollyt"
 authors = ["Dollyt contributors"]
 edition = "2024"

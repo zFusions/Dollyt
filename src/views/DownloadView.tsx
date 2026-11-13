@@ -113,7 +113,7 @@ export function DownloadView() {
               <span style={{ width: `${percent}%` }} />
             </div>
           </section>
-        ) : state === "success" && videoUrl ? (
+        ) : state === "success" ? (
           <section className="download-result">
             <div className="download-result-copy">
               <h1>{t("clipReady")}</h1>
@@ -139,18 +139,20 @@ export function DownloadView() {
               </div>
               {openError ? <p className="download-open-error">{openError}</p> : null}
             </div>
-            <div className="download-preview">
-              <p className="download-preview-label">{t("preview")}</p>
-              <video
-                src={videoUrl}
-                controls
-                controlsList="nodownload noplaybackrate"
-                disablePictureInPicture
-                disableRemotePlayback
-                playsInline
-                preload="metadata"
-              />
-            </div>
+            {videoUrl ? (
+              <div className="download-preview">
+                <p className="download-preview-label">{t("preview")}</p>
+                <video
+                  src={videoUrl}
+                  controls
+                  controlsList="nodownload noplaybackrate"
+                  disablePictureInPicture
+                  disableRemotePlayback
+                  playsInline
+                  preload="metadata"
+                />
+              </div>
+            ) : null}
           </section>
         ) : (
           <section className="download-error">

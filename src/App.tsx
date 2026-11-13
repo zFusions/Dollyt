@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { AppShell } from "./components/AppShell";
@@ -16,6 +16,9 @@ import { SettingsView } from "./views/SettingsView";
 import { useLocale } from "./i18n";
 import { DownloadView } from "./views/DownloadView";
 import { useAppUpdater } from "./hooks/useAppUpdater";
+import { getLeaveGuard } from "./lib/leaveGuard";
+import { UnsavedGuardDialog } from "./components/UnsavedGuardDialog";
+import type { Screen } from "./store";
 
 function App() {
   const locale = useLocale();
@@ -32,6 +35,58 @@ function App() {
   const addHistory = useDollytStore((s) => s.addHistory);
   const { shownScreen, viewPhase } = useDeferredScreen(screen);
   const { dialog: updateDialog, notice: updateNotice } = useAppUpdater();
+  const [pendingNav, setPendingNav] = useState<Screen | null>(null);
+  const [guardBusy, setGuardBusy] = useState(false);
+  const [guardError, setGuardError] = useState("");
+
+  useEffect(() => {
+    document.body.classList.toggle("unsaved-guard", pendingNav !== null);
+    return () => document.body.classList.remove("unsaved-guard");
+  }, [pendingNav]);
+
+  function handleNav(target: Screen) {
+    if (target === screen) return;
+    const guard = getLeaveGuard();
+    if (guard?.isDirty()) {
+      setGuardError("");
+      setPendingNav(target);
+      return;
+    }
+    go(target);
+  }
+
+  function closeGuard() {
+    if (guardBusy) return;
+    setPendingNav(null);
+    setGuardError("");
+  }
+
+  async function guardSaveAndLeave() {
+    const guard = getLeaveGuard();
+    const target = pendingNav;
+    if (!guard || !target) return;
+    setGuardBusy(true);
+    setGuardError("");
+    try {
+      await guard.save();
+      setPendingNav(null);
+      go(target);
+    } catch (error) {
+      setGuardError(String(error));
+    } finally {
+      setGuardBusy(false);
+    }
+  }
+
+  function guardDiscardAndLeave() {
+    const guard = getLeaveGuard();
+    const target = pendingNav;
+    if (!guard || !target) return;
+    guard.discard();
+    setPendingNav(null);
+    setGuardError("");
+    go(target);
+  }
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -126,13 +181,22 @@ function App() {
         screen={screen}
         shownScreen={shownScreen}
         viewPhase={viewPhase}
-        onNav={go}
+        onNav={handleNav}
         editorEnabled={!EDITOR_QUARANTINED && !!video}
       >
         {body}
       </AppShell>
       {updateDialog}
       {updateNotice}
+      {pendingNav ? (
+        <UnsavedGuardDialog
+          busy={guardBusy}
+          error={guardError}
+          onStay={closeGuard}
+          onDiscard={guardDiscardAndLeave}
+          onSaveAndLeave={guardSaveAndLeave}
+        />
+      ) : null}
     </>
   );
 }
