@@ -102,7 +102,6 @@ pub fn filmstrip_for_view(
     Ok(TimelineFilmstrip { frames })
 }
 
-/// Une passe FFmpeg sur tout le fichier — vignettes stables au zoom / scroll.
 pub fn filmstrip_master(
     video_path: &str,
     duration_secs: f64,

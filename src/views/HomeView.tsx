@@ -7,10 +7,11 @@ import {
   startCutJob,
   type Preset,
 } from "../api/dollyt";
-import { DinoLoader } from "../components/DinoLoader";
+import { SnakeLoader } from "../components/SnakeLoader";
+import { TimeInput } from "../components/TimeInput";
 import { Switch } from "../components/Toggle";
 import { WindowControls } from "../components/WindowChrome";
-import { clampTime, snapToFrame } from "../lib/time";
+import { clampTime, snapToFrame, formatTimeInput } from "../lib/time";
 import { presetShortLabel } from "../lib/presetsUi";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { normalizeYoutubeUrl, validateYoutubeUrl } from "../lib/validateUrl";
@@ -93,6 +94,12 @@ export function HomeView() {
       const end = exportFullVideo
         ? snapToFrame(dur, fps)
         : snapToFrame(clampTime(endSecs, start + 1 / fps, dur), fps);
+      if (!exportFullVideo && (startSecs >= dur || endSecs > dur)) {
+        setError(`La vidéo fait ${formatTimeInput(dur)} — l'extrait demandé dépasse cette durée.`);
+        setBusy(false);
+        useDollytStore.getState().finishDownload(false, "Extrait hors limites.");
+        return;
+      }
       if (!exportFullVideo) setRangeSecs(start, end);
       await startCutJob({
         rawUrl: target,
@@ -264,39 +271,25 @@ export function HomeView() {
                   <div className="home-clip-row">
                     <label className="home-clip-field">
                       <span>{t("start")}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.1}
-                        className="field home-clip-input mono"
-                        value={startSecs}
+                      <TimeInput
+                        secs={startSecs}
                         disabled={busy || exportFullVideo}
-                        tabIndex={exportFullVideo ? -1 : undefined}
-                        onChange={(e) =>
-                          setRangeSecs(Number(e.target.value) || 0, endSecs)
-                        }
+                        onChange={(s) => setRangeSecs(s, endSecs)}
                       />
                     </label>
                     <label className="home-clip-field">
                       <span>{t("end")}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.1}
-                        className="field home-clip-input mono"
-                        value={endSecs}
+                      <TimeInput
+                        secs={endSecs}
                         disabled={busy || exportFullVideo}
-                        tabIndex={exportFullVideo ? -1 : undefined}
-                        onChange={(e) =>
-                          setRangeSecs(startSecs, Number(e.target.value) || 0)
-                        }
+                        onChange={(s) => setRangeSecs(startSecs, s)}
                       />
                     </label>
                   </div>
                 </div>
               </div>
             </div>
-            {busy ? <DinoLoader active /> : null}
+            {busy ? <SnakeLoader active /> : null}
           </form>
 
           <p className="home-hint">

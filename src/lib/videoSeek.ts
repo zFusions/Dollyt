@@ -11,6 +11,5 @@ export function seekToFrame(
   try {
     video.currentTime = t;
   } catch {
-    // ignore
   }
 }

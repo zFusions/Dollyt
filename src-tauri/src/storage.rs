@@ -8,8 +8,7 @@ use std::time::SystemTime;
 const FILMSTRIP_MAX_BYTES: u64 = 192 * 1024 * 1024;
 const FILMSTRIP_MAX_DIRS: usize = 24;
 
-fn temp_cache_root() -> PathBuf {
-    // WebView2 : convertFileSrc n’expose que $TEMP (voir tauri.conf.json).
+pub fn temp_cache_root() -> PathBuf {
     let p = std::env::temp_dir().join("dollyt-cache");
     let _ = fs::create_dir_all(&p);
     p
@@ -25,24 +24,18 @@ pub fn preview_mp4_path() -> PathBuf {
     preview_cache_dir().join("current.mp4")
 }
 
-pub fn download_preview_mp4_path() -> PathBuf {
-    let p = temp_cache_root()
-        .join("download-preview")
-        .join("current.mp4");
-    if let Some(parent) = p.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    p
-}
-
 pub fn copy_download_preview(source: &str) -> Result<String> {
     let extension = Path::new(source)
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or("mp4");
+    let timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
     let target = temp_cache_root()
         .join("download-preview")
-        .join(format!("current.{extension}"));
+        .join(format!("preview-{timestamp}.{extension}"));
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
     }

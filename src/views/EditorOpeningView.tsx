@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { WaitDino } from "../components/WaitDino";
+import { SnakeWait } from "../components/SnakeWait";
 import { startLocalPreview } from "../api/dollyt";
 import { useDollytStore } from "../store";
 
@@ -92,7 +92,7 @@ export function EditorOpeningView() {
         <div className="load-fill" style={{ transform: `scaleX(${shown / 100})` }} />
       </div>
       <p className="mono load-pct">{Math.round(shown)} %</p>
-      <WaitDino />
+      <SnakeWait />
       <p className="meta">Flèches, glisser ou clic pour jouer. L&apos;éditeur s&apos;ouvre au bout du chargement.</p>
       <button type="button" className="btn btn-ghost btn-sm" onClick={goHome} tabIndex={-1}>
         Annuler

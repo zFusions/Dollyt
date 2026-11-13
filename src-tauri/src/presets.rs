@@ -1,7 +1,7 @@
 use crate::error::{DollytError, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -75,41 +75,6 @@ pub fn list_user() -> Result<Vec<Preset>> {
     Ok(out)
 }
 
-pub fn save_user(preset: &Preset) -> Result<()> {
-    if !is_safe_preset_id(&preset.id) {
-        return Err(DollytError::PresetNotFound(preset.id.clone()));
-    }
-    let dir = user_presets_dir();
-    fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{}.json", preset.id));
-    if !path_is_inside(&dir, &path) {
-        return Err(DollytError::PresetNotFound(preset.id.clone()));
-    }
-    let json = serde_json::to_string_pretty(preset)?;
-    fs::write(path, json)?;
-    Ok(())
-}
-
-fn is_safe_preset_id(id: &str) -> bool {
-    !id.is_empty()
-        && id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
-}
-
-fn path_is_inside(root: &Path, candidate: &Path) -> bool {
-    let Ok(root) = root.canonicalize() else {
-        return false;
-    };
-    let Some(parent) = candidate.parent() else {
-        return false;
-    };
-    let Ok(parent) = parent.canonicalize() else {
-        return false;
-    };
-    parent == root
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,13 +84,5 @@ mod tests {
         let all = list_builtin().expect("builtin");
         assert_eq!(all.len(), 8);
         assert!(all.iter().any(|p| p.id == "edition"));
-    }
-
-    #[test]
-    fn rejects_path_like_preset_ids() {
-        assert!(!is_safe_preset_id("../settings"));
-        assert!(!is_safe_preset_id(r"C:\settings"));
-        assert!(!is_safe_preset_id(""));
-        assert!(is_safe_preset_id("my-preset_1"));
     }
 }

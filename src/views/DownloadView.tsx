@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { DinoLoader } from "../components/DinoLoader";
+import { SnakeLoader } from "../components/SnakeLoader";
 import { WindowControls } from "../components/WindowChrome";
 import { revealFile } from "../api/dollyt";
 import { previewSrc } from "../lib/previewSrc";
@@ -104,7 +104,7 @@ export function DownloadView() {
       <main className="download-main">
         {state === "loading" || state === "idle" ? (
           <section className="download-loading" aria-live="polite">
-            <DinoLoader active />
+            <SnakeLoader active />
             <div className="download-loading-title">
               <span className="download-percent">{percent}%</span>
               <h1>{stages[stage] ?? t("preparingClip")}</h1>
