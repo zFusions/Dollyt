@@ -554,4 +554,50 @@
     justify-content: flex-end;
     gap: 8px;
   }
+
+  .unsaved-guard-card {
+    text-align: center;
+  }
+  .unsaved-guard-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 14px;
+    border-radius: 50%;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .unsaved-guard-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  .unsaved-guard-card .set-dev-gate-title {
+    margin-bottom: 8px;
+  }
+  .unsaved-guard-card .set-dev-gate-lead {
+    margin-inline: auto;
+    margin-bottom: 18px;
+  }
+  .unsaved-guard-error {
+    margin: -8px auto 14px;
+    color: var(--accent);
+  }
+  .unsaved-guard-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .unsaved-guard-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .unsaved-guard-actions .btn svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+  }
 }

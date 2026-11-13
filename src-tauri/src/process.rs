@@ -1,27 +1,32 @@
-use crate::bins::tools;
+use crate::bins::{self, ToolPaths};
 use crate::error::{DollytError, Result};
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
+use std::process::{Child, Command, Output, Stdio};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-pub fn run_ytdlp(args: &[&str]) -> Result<Output> {
-    ytdlp_command(args).output().map_err(DollytError::from)
+fn tool_paths() -> Result<&'static ToolPaths> {
+    bins::tools().ok_or_else(|| DollytError::BinMissing("outils Dollyt".into()))
 }
 
-pub fn spawn_ytdlp(args: &[&str]) -> Result<std::process::Child> {
-    let mut cmd = ytdlp_command(args);
+pub fn run_ytdlp(args: &[&str]) -> Result<Output> {
+    ytdlp_command(args)?.output().map_err(DollytError::from)
+}
+
+pub fn spawn_ytdlp(args: &[&str]) -> Result<Child> {
+    let mut cmd = ytdlp_command(args)?;
     cmd.arg("--newline");
     cmd.arg("--progress-template");
     cmd.arg("download:%(progress._percent_str)s");
     cmd.spawn().map_err(DollytError::from)
 }
 
-fn ytdlp_command(args: &[&str]) -> Command {
-    let mut cmd = Command::new(&tools().ytdlp);
+fn ytdlp_command(args: &[&str]) -> Result<Command> {
+    let tools = tool_paths()?;
+    let mut cmd = Command::new(&tools.ytdlp);
     push_ytdlp_defaults(&mut cmd);
     for arg in args {
         cmd.arg(arg);
@@ -29,12 +34,15 @@ fn ytdlp_command(args: &[&str]) -> Command {
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    cmd
+    Ok(cmd)
 }
 
 fn push_ytdlp_defaults(cmd: &mut Command) {
     cmd.arg("--ignore-config");
-    let deno = &tools().deno;
+    let Some(tools) = bins::tools() else {
+        return;
+    };
+    let deno = &tools.deno;
     if deno.is_file() {
         cmd.arg("--js-runtimes");
         cmd.arg(format!("deno:{}", deno.display()));
@@ -81,11 +89,25 @@ fn push_ytdlp_defaults(cmd: &mut Command) {
 }
 
 pub fn run_ffmpeg(args: &[&str]) -> Result<Output> {
-    run_exe(&tools().ffmpeg, args, false)
+    let tools = tool_paths()?;
+    run_exe(&tools.ffmpeg, args, false)
+}
+
+pub fn spawn_ffmpeg(args: &[&str]) -> Result<Child> {
+    let tools = tool_paths()?;
+    let mut cmd = Command::new(&tools.ffmpeg);
+    for arg in args {
+        cmd.arg(arg);
+    }
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.spawn().map_err(DollytError::from)
 }
 
 pub fn run_ffprobe(args: &[&str]) -> Result<Output> {
-    run_exe(&tools().ffprobe, args, false)
+    let tools = tool_paths()?;
+    run_exe(&tools.ffprobe, args, false)
 }
 
 fn run_exe(program: &Path, args: &[&str], ignore_config: bool) -> Result<Output> {
@@ -100,4 +122,12 @@ fn run_exe(program: &Path, args: &[&str], ignore_config: bool) -> Result<Output>
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     cmd.output().map_err(DollytError::from)
+}
+
+pub(crate) fn kill_process_tree(pid: u32) {
+    let mut cmd = Command::new("taskkill");
+    cmd.args(["/PID", &pid.to_string(), "/T", "/F"]);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let _ = cmd.status();
 }

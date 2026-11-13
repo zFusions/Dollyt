@@ -93,7 +93,7 @@ export function EditorOpeningView() {
       </div>
       <p className="mono load-pct">{Math.round(shown)} %</p>
       <WaitDino />
-      <p className="meta">Espace ou clic pour passer l&apos;animation. L&apos;éditeur s&apos;ouvre au bout du chargement.</p>
+      <p className="meta">Flèches, glisser ou clic pour jouer. L&apos;éditeur s&apos;ouvre au bout du chargement.</p>
       <button type="button" className="btn btn-ghost btn-sm" onClick={goHome} tabIndex={-1}>
         Annuler
       </button>

@@ -1,4 +1,4 @@
-use crate::bins::{self, ToolPaths};
+use crate::bins;
 use crate::error::DollytError;
 use crate::jobs::{JobsState, start_cut_job};
 use crate::log;
@@ -6,7 +6,7 @@ use crate::presets::{self, Preset};
 use crate::settings::{self, Settings};
 use crate::storyboard::{self, StoryboardInfo};
 use crate::url;
-use crate::ytdlp::{self, DownloadResult, VideoInfo};
+use crate::ytdlp::{self, VideoInfo};
 use serde::Serialize;
 use std::path::Path;
 use std::process::Command;
@@ -17,13 +17,6 @@ use tauri::{AppHandle, Emitter, State};
 fn filmstrip_gate() -> &'static Mutex<()> {
     static GATE: OnceLock<Mutex<()>> = OnceLock::new();
     GATE.get_or_init(|| Mutex::new(()))
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RunCutResult {
-    pub download: DownloadResult,
-    pub cut: crate::ffmpeg::CutResult,
 }
 
 #[derive(Debug, Serialize)]
@@ -47,32 +40,6 @@ fn cancel_running_preview() {
     if let Some(cancel) = guard.take() {
         cancel.store(true, Ordering::SeqCst);
     }
-}
-
-#[tauri::command]
-pub fn download_section(
-    raw_url: String,
-    format_id: String,
-    start_secs: f64,
-    end_secs: f64,
-) -> Result<DownloadResult, String> {
-    let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-    ytdlp::download_section(&url, &format_id, start_secs, end_secs, 3.0).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn run_cut_pipeline(
-    raw_url: String,
-    format_id: String,
-    start_secs: f64,
-    end_secs: f64,
-) -> Result<RunCutResult, String> {
-    let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-    let download = ytdlp::download_section(&url, &format_id, start_secs, end_secs, 3.0)
-        .map_err(|e| e.to_string())?;
-    let cut = crate::ffmpeg::cut_exact_section(&download.path, start_secs, end_secs)
-        .map_err(|e| e.to_string())?;
-    Ok(RunCutResult { download, cut })
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -275,6 +242,9 @@ pub async fn get_timeline_filmstrip_master(
 ) -> Result<crate::filmstrip::TimelineFilmstrip, String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::win_priority::deprioritize_worker_thread();
+        if !crate::storage::path_in_temp_cache(&video_path) {
+            return Err("Chemin vidéo refusé.".to_string());
+        }
         let _lock = filmstrip_gate().lock().unwrap_or_else(|e| e.into_inner());
         crate::filmstrip::filmstrip_master(&video_path, duration_secs, frame_count)
             .map_err(|e| e.to_string())
@@ -293,6 +263,9 @@ pub async fn get_timeline_filmstrip(
 ) -> Result<crate::filmstrip::TimelineFilmstrip, String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::win_priority::deprioritize_worker_thread();
+        if !crate::storage::path_in_temp_cache(&video_path) {
+            return Err("Chemin vidéo refusé.".to_string());
+        }
         let _lock = filmstrip_gate().lock().unwrap_or_else(|e| e.into_inner());
         crate::filmstrip::filmstrip_for_view(
             &video_path,
@@ -343,7 +316,9 @@ pub fn get_preset(id: String) -> Result<Preset, String> {
 
 #[tauri::command]
 pub fn bins_status() -> Result<BinsStatus, String> {
-    let t: &ToolPaths = bins::tools();
+    let Some(t) = bins::tools() else {
+        return Err("Les binaires Dollyt ne sont pas encore installés.".into());
+    };
     Ok(BinsStatus {
         ytdlp: t.ytdlp.display().to_string(),
         ffmpeg: t.ffmpeg.display().to_string(),

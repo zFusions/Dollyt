@@ -2,9 +2,7 @@ import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { isTauri } from "@tauri-apps/api/core";
 import {
-  closeYoutubeLogin,
   getSettings,
-  openYoutubeLogin,
   pickCookiesFile,
   probeYoutubeSession,
   saveSettings,
@@ -16,7 +14,7 @@ type Props = {
   onDone: () => void;
 };
 
-type Method = "firefox" | "dollyt" | "cookies";
+type Method = "firefox" | "cookies";
 
 export function YoutubeConnectModal({ onDone }: Props) {
   const [method, setMethod] = useState<Method>("firefox");
@@ -83,21 +81,6 @@ export function YoutubeConnectModal({ onDone }: Props) {
     }
   }
 
-  async function applyDollytWindow() {
-    setBusy(true);
-    setMsg("");
-    try {
-      await openYoutubeLogin();
-      setMsg(
-        "Connecte-toi dans la fenêtre Dollyt. Sur Windows, Chrome et Edge demandent souvent un fichier cookies.txt. Firefox reste le plus simple.",
-      );
-    } catch (e) {
-      setMsg(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function importCookies() {
     setBusy(true);
     setMsg("");
@@ -118,11 +101,6 @@ export function YoutubeConnectModal({ onDone }: Props) {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function finishDollyt() {
-    await closeYoutubeLogin();
-    await testSession();
   }
 
   async function skip() {
@@ -159,18 +137,6 @@ export function YoutubeConnectModal({ onDone }: Props) {
               Dollyt lit les cookies Firefox déjà sur ton PC (Windows).
             </span>
           </label>
-          <label className={`yt-connect-opt${method === "dollyt" ? " is-on" : ""}`}>
-            <input
-              type="radio"
-              name="yt-method"
-              checked={method === "dollyt"}
-              onChange={() => setMethod("dollyt")}
-            />
-            <span className="yt-connect-opt-title">Fenêtre Dollyt</span>
-            <span className="meta">
-              Tu te connectes dans une petite fenêtre Dollyt, puis tu testes.
-            </span>
-          </label>
           <label className={`yt-connect-opt${method === "cookies" ? " is-on" : ""}`}>
             <input
               type="radio"
@@ -190,15 +156,6 @@ export function YoutubeConnectModal({ onDone }: Props) {
             <PrimaryButton variant="primary" onClick={() => void applyFirefox()} disabled={busy}>
               Ouvrir Firefox et configurer
             </PrimaryButton>
-          ) : method === "dollyt" ? (
-            <>
-              <PrimaryButton variant="primary" onClick={() => void applyDollytWindow()} disabled={busy}>
-                Ouvrir la fenêtre YouTube
-              </PrimaryButton>
-              <PrimaryButton variant="default" onClick={() => void finishDollyt()} disabled={busy}>
-                J&apos;ai fini, tester
-              </PrimaryButton>
-            </>
           ) : (
             <PrimaryButton variant="primary" onClick={() => void importCookies()} disabled={busy}>
               Choisir cookies.txt

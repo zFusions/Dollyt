@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Child;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
@@ -120,10 +120,6 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
     })
 }
 
-pub fn fetch_video_info(url: &str) -> Result<VideoInfo> {
-    video_info_from_json(&fetch_metadata_json(url)?)
-}
-
 /** URL fraîche pour la balise video (les URL du JSON -J expirent vite). */
 pub fn resolve_muxed_stream_url(page_url: &str, format_id: &str) -> Result<String> {
     let fmt = if format_id.is_empty() {
@@ -160,18 +156,7 @@ fn muxed_fps_for_id(formats: &[Value], format_id: &str) -> f64 {
         .clamp(1.0, 120.0)
 }
 
-pub fn resolve_export_format(url: &str, fallback: &str) -> Result<String> {
-    let value = fetch_metadata_json(url)?;
-    let formats = value
-        .get("formats")
-        .and_then(|v| v.as_array())
-        .map(|v| v.as_slice())
-        .unwrap_or(&[]);
-    Ok(format::pick_download_formats(formats)
-        .map(|s| format::to_ytdlp_format(&s))
-        .unwrap_or_else(|| fallback.to_string()))
-}
-
+#[cfg(test)]
 pub fn download_section(
     url: &str,
     format_id: &str,
@@ -272,7 +257,7 @@ fn valid_format_selector(value: &str) -> bool {
             byte.is_ascii_alphanumeric()
                 || matches!(
                     byte,
-                    b'+' | b'*' | b'/' | b',' | b'.' | b'[' | b']' | b'(' | b')' | b'_'
+                    b'+' | b'*' | b'/' | b',' | b'.' | b'[' | b']' | b'(' | b')' | b'_' | b'-'
                 )
         })
 }
@@ -311,7 +296,7 @@ fn wait_child_slot(
             if let Ok(mut guard) = child_slot.lock()
                 && let Some(child) = guard.take()
             {
-                kill_process_tree(child.id());
+                process::kill_process_tree(child.id());
             }
             return Err(DollytError::Cancelled);
         }
@@ -352,21 +337,14 @@ fn wait_child_slot(
     }
 }
 
-#[cfg(windows)]
-fn kill_process_tree(pid: u32) {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let mut cmd = std::process::Command::new("taskkill");
-    cmd.args(["/PID", &pid.to_string(), "/T", "/F"]);
-    cmd.creation_flags(CREATE_NO_WINDOW);
-    let _ = cmd.status();
-}
-
-#[cfg(not(windows))]
-fn kill_process_tree(_pid: u32) {}
-
 fn temp_mkv_path() -> PathBuf {
-    let p = crate::storage::preview_mkv_path();
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let millis = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let p = crate::storage::preview_cache_dir().join(format!("_download-{millis}-{n}.mkv"));
     let _ = std::fs::remove_file(&p);
     p
 }
@@ -391,9 +369,10 @@ mod tests {
     fn live_me_at_the_zoo_pipeline() {
         crate::bins::ensure_tools().expect("bins");
         let url = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
-        let info = fetch_video_info(url).expect("métadonnées");
+        let info =
+            video_info_from_json(&fetch_metadata_json(url).expect("métadonnées")).expect("infos");
         assert_eq!(info.format_id, "18");
-        let dl = download_section(&url, &info.format_id, 5.0, 12.0, 3.0).expect("téléchargement");
+        let dl = download_section(url, &info.format_id, 5.0, 12.0, 3.0).expect("téléchargement");
         let cut = crate::ffmpeg::cut_exact_section(&dl.path, 5.0, 12.0).expect("découpe");
         assert!((cut.output_duration_secs - 7.0).abs() < 0.75);
         eprintln!(

@@ -11,7 +11,6 @@ mod process;
 mod settings;
 mod storage;
 mod storyboard;
-mod updater;
 mod url;
 mod win_priority;
 mod youtube_session;
@@ -30,7 +29,11 @@ pub fn run() {
         .manage(Arc::new(JobsState::default()))
         .setup(|app| {
             win_priority::boost_app_process();
-            bins::ensure_tools().map_err(|e| e.to_string())?;
+            if let Err(error) = bins::ensure_tools() {
+                log::log_line(&format!(
+                    "installation des binaires impossible, réessayez plus tard: {error}"
+                ));
+            }
             match settings::load() {
                 Ok(config) if config.auto_update_ytdlp => {
                     if let Err(error) = bins::update_ytdlp_manual() {
@@ -69,12 +72,8 @@ pub fn run() {
             commands::save_preset,
             commands::bins_status,
             commands::update_ytdlp,
-            commands::download_section,
-            commands::run_cut_pipeline,
             commands::start_cut_job_command,
             jobs::cancel_job,
-            youtube_session::open_youtube_login,
-            youtube_session::close_youtube_login,
             youtube_session::probe_youtube_session,
             youtube_session::pick_cookies_file,
             youtube_session::pick_export_directory,
