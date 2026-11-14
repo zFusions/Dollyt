@@ -65,7 +65,6 @@ export function DownloadView() {
   );
   const shownPercent = activeJob ? activeJob.percent : percent;
   const shownStage = activeJob?.stage || stage;
-  const setRange = useDollytStore((s) => s.setRangeSecs);
   const go = useDollytStore((s) => s.go);
   const goHome = useDollytStore((s) => s.goHome);
   const resetDownload = useDollytStore((s) => s.resetDownload);
@@ -88,7 +87,7 @@ export function DownloadView() {
   }
 
   function newClip() {
-    setRange(0, 7);
+    useDollytStore.getState().resetClipFields();
     const hasActiveJob = useDollytStore
       .getState()
       .jobs.some((job) => job.state === "running" || job.state === "queued");

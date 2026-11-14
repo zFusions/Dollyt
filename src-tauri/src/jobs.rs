@@ -74,6 +74,10 @@ pub struct JobFinished {
     pub preview_path: Option<String>,
 }
 
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 #[tauri::command]
 pub fn cancel_job(
     app: AppHandle,
@@ -82,7 +86,7 @@ pub fn cancel_job(
 ) -> Result<(), String> {
     let mut removed = false;
     if let Some(id) = job_id {
-        let mut queue = state.queue.lock().map_err(|e| e.to_string())?;
+        let mut queue = lock(&state.queue);
         if let Some(pos) = queue.items.iter().position(|j| j.job_id == id) {
             queue.items.remove(pos);
             removed = true;
@@ -103,7 +107,7 @@ pub fn cancel_job(
             return Ok(());
         }
     }
-    let mut guard = state.active.lock().map_err(|e| e.to_string())?;
+    let mut guard = lock(&state.active);
     let Some(job) = guard.as_mut() else {
         return Ok(());
     };
@@ -112,10 +116,22 @@ pub fn cancel_job(
     {
         return Ok(());
     }
+    let cancelled_id = job.job_id;
     job.cancel.store(true, Ordering::SeqCst);
-    if let Some(child) = job.child.lock().map_err(|e| e.to_string())?.take() {
+    if let Some(child) = job.child.lock().unwrap_or_else(|e| e.into_inner()).take() {
         process::kill_process_tree(child.id());
     }
+    drop(guard);
+    let _ = app.emit(
+        "job-finished",
+        JobFinished {
+            job_id: cancelled_id,
+            ok: false,
+            message: "annulé".into(),
+            output_path: None,
+            preview_path: None,
+        },
+    );
     log::log_line("job annulé");
     Ok(())
 }
@@ -130,7 +146,7 @@ pub fn start_cut_job(
     preset_id: String,
 ) -> Result<u64, String> {
     let job_id = {
-        let mut next = state.next_id.lock().map_err(|e| e.to_string())?;
+        let mut next = lock(&state.next_id);
         let id = *next;
         *next += 1;
         id
@@ -138,7 +154,7 @@ pub fn start_cut_job(
     let cancel = Arc::new(AtomicBool::new(false));
     let child_slot = Arc::new(Mutex::new(None::<Child>));
     {
-        let mut queue = state.queue.lock().map_err(|e| e.to_string())?;
+        let mut queue = lock(&state.queue);
         queue.items.push_back(JobRequest {
             job_id,
             raw_url,
@@ -160,19 +176,16 @@ pub fn start_cut_job(
 }
 
 fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
+    let _guard = RunningGuard {
+        queue: &state.queue,
+    };
     loop {
         let request = {
-            let mut queue = match state.queue.lock() {
-                Ok(q) => q,
-                Err(_) => return,
-            };
+            let mut queue = lock(&state.queue);
             queue.items.pop_front()
         };
         let Some(request) = request else {
-            let mut queue = match state.queue.lock() {
-                Ok(q) => q,
-                Err(_) => return,
-            };
+            let mut queue = lock(&state.queue);
             if queue.items.is_empty() {
                 queue.running = false;
                 return;
@@ -180,10 +193,7 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
             continue;
         };
         {
-            let mut active = match state.active.lock() {
-                Ok(a) => a,
-                Err(_) => return,
-            };
+            let mut active = lock(&state.active);
             *active = Some(ActiveJob {
                 job_id: request.job_id,
                 cancel: Arc::clone(&request.cancel),
@@ -225,6 +235,18 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
         {
             *active = None;
         }
+    }
+}
+
+// Garde contre les sorties anticipées : si la boucle se termine
+// anormalement, la file ne reste jamais bloquée sur running = true.
+struct RunningGuard<'a> {
+    queue: &'a Mutex<Queue>,
+}
+
+impl Drop for RunningGuard<'_> {
+    fn drop(&mut self) {
+        lock(self.queue).running = false;
     }
 }
 
