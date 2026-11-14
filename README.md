@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="Dollyt" width="200">
+  <img src="docs/assets/logo.png" alt="Dollyt">
 </p>
 
 <h1 align="center">Dollyt</h1>
