@@ -31,6 +31,7 @@ export function HomeView() {
   const endSecs = useDollytStore((s) => s.endSecs);
   const setRangeSecs = useDollytStore((s) => s.setRangeSecs);
   const selectedPresetId = useDollytStore((s) => s.selectedPresetId);
+  const video = useDollytStore((s) => s.video);
   const setSelectedPresetId = useDollytStore((s) => s.setSelectedPresetId);
   const exportFullVideo = useDollytStore((s) => s.exportFullVideo);
   const setExportFullVideo = useDollytStore((s) => s.setExportFullVideo);
@@ -141,13 +142,23 @@ export function HomeView() {
   function focusUrl() {
     setUrl("");
     setError("");
-    useDollytStore.getState().resetClipFields();
+    const st = useDollytStore.getState();
+    st.resetClipFields();
+    st.setVideo(null);
+    st.setStoryboard(null);
     formRef.current?.querySelector<HTMLInputElement>("#url-field")?.focus();
   }
 
   function submitDownload() {
     formRef.current?.requestSubmit();
   }
+
+  const selectedPreset = presets.find((p) => p.id === selectedPresetId);
+  const showCropWarning =
+    selectedPreset?.crop === "center" &&
+    !!video?.width &&
+    !!video?.height &&
+    video.width >= video.height;
 
   return (
     <div className="home-hero">
@@ -266,6 +277,11 @@ export function HomeView() {
                       ariaLabel={t("exportPresetAria")}
                       options={presetSelectOptions(presets)}
                     />
+                    {showCropWarning ? (
+                      <span className="set-hint home-crop-warn">
+                        {t("cropCenterWarn")}
+                      </span>
+                    ) : null}
                   </label>
                   <div className="home-mode-field">
                     <span>{t("range")}</span>

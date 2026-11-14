@@ -25,6 +25,10 @@ pub struct VideoInfo {
     pub preview_fps: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_file_duration_secs: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -105,6 +109,14 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
         None => return Err(DollytError::NoMuxedFormat),
     };
     let preview_fps = muxed_fps_for_id(formats, &format_id);
+    let width = value
+        .get("width")
+        .and_then(|v| v.as_u64())
+        .and_then(|v| u32::try_from(v).ok());
+    let height = value
+        .get("height")
+        .and_then(|v| v.as_u64())
+        .and_then(|v| u32::try_from(v).ok());
     let export_format_id = format::pick_download_formats(formats)
         .map(|s| format::to_ytdlp_format(&s))
         .unwrap_or_else(|| format_id.clone());
@@ -117,6 +129,8 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
         export_format_id,
         preview_fps,
         preview_file_duration_secs: None,
+        width,
+        height,
     })
 }
 
