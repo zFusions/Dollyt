@@ -161,10 +161,9 @@ export function SettingsView() {
         onClose={() => setNotice(null)}
       />
       <header className="set-head">
-        <h1 className="page-title">Paramètres</h1>
+        <h1 className="page-title">{t("settingsTitle")}</h1>
         <p className="page-sub">
-          Dossier de sortie, yt-dlp et options avancées. Le preset pour TikTok ou
-          YouTube se choisit dans Presets.
+          {t("settingsSub")} YouTube se choisit dans Presets.
         </p>
         <div className="set-head-actions">
           {msg ? <p className="meta">{msg}</p> : null}
@@ -233,8 +232,8 @@ export function SettingsView() {
               </div>
             </SettingRow>
             <SettingRow
-              label="Nom des fichiers exportés"
-              hint="{titre}, {debut} et {fin} sont remplacés au moment de l'export"
+              label={t("exportFilename")}
+              hint={t("exportFilenameHint")}
             >
               <input
                 value={draft.nameTemplate}
@@ -271,11 +270,11 @@ export function SettingsView() {
       </section>
 
       <section className="set-section">
-        <h2 className="set-heading">Mises à jour</h2>
+        <h2 className="set-heading">{t("updateAvailable")}</h2>
         <Panel>
           <div className="set-group">
             <SettingRow
-              label="Mise à jour automatique de Dollyt"
+              label={t("autoUpdateApp")}
               hint={t("autoUpdateHint")}
             >
               <Switch
@@ -304,7 +303,7 @@ export function SettingsView() {
               </PrimaryButton>
             </SettingRow>
             <SettingRow
-              label="Mise à jour automatique de yt-dlp"
+              label={t("autoUpdateYtdlp")}
               hint="Désactivée par défaut. Quand elle est activée, Dollyt vérifie la version épinglée au démarrage."
             >
               <Switch
@@ -312,12 +311,12 @@ export function SettingsView() {
                 onChange={(value) =>
                   setDraft((current) => ({ ...current, autoUpdateYtdlp: value }))
                 }
-                label="Mise à jour automatique de yt-dlp"
+                label={t("autoUpdateYtdlp")}
               />
             </SettingRow>
             <SettingRow
               label="Version de yt-dlp"
-              hint="Le fichier vient uniquement de la release GitHub officielle épinglée par Dollyt, SHA-256 vérifié."
+              hint={t("ytdlpSourceHint")}
             >
               <PrimaryButton
                 variant="default"
@@ -325,7 +324,7 @@ export function SettingsView() {
                 onClick={onUpdateYtdlp}
                 disabled={busy}
               >
-                Revérifier yt-dlp
+                {t("recheckYtdlp")}
               </PrimaryButton>
             </SettingRow>
           </div>
@@ -353,12 +352,11 @@ export function SettingsView() {
             {draft.developerMode ? (
               <>
                 <p className="meta px-3 pb-1 text-warn" role="note">
-                  Chaque export depuis l&apos;accueil utilisera ces valeurs. Mauvais CRF
-                  ou fps peut gonfler le fichier ou faire échouer l&apos;upload.
+                  {t("devValuesWarning")}
                 </p>
                 <SettingRow
                   label="CRF"
-                  hint="18 est souvent propre. 0 fait des fichiers énormes. Vide = preset."
+                  hint={t("devValuesHint")}
                 >
                   <input
                     type="number"
@@ -379,7 +377,7 @@ export function SettingsView() {
                   />
                 </SettingRow>
                 <SettingRow
-                  label="Plafond vidéo (Mbps)"
+                  label={t("videoCap")}
                   hint="Plafond réseau du preset si tu laisses vide"
                 >
                   <input

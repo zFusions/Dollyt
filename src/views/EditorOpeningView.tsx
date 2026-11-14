@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { SnakeWait } from "../components/SnakeWait";
 import { startLocalPreview } from "../api/dollyt";
 import { useDollytStore } from "../store";
+import { t } from "../i18n";
 
 export function EditorOpeningView() {
   const url = useDollytStore((s) => s.url);
@@ -53,7 +54,7 @@ export function EditorOpeningView() {
       setJobPercent(0);
     }).then((u) => unsubs.push(u));
     listen<{ message?: string }>("preview-local-failed", (event) => {
-      const msg = event.payload.message || "Téléchargement impossible.";
+      const msg = event.payload.message || t("downloadFailed");
       setFail(msg);
       setStatus(msg);
     }).then((u) => unsubs.push(u));
@@ -80,7 +81,7 @@ export function EditorOpeningView() {
 
   return (
     <section className="page editor-page editor-opening">
-      <p className="editor-opening-title">Préparation de la vidéo</p>
+      <p className="editor-opening-title">{t("preparingVideoTitle")}</p>
       <p className="meta">{fail || status || "On récupère les infos YouTube…"}</p>
       <div
         className="load-track"
@@ -95,7 +96,7 @@ export function EditorOpeningView() {
       <SnakeWait />
       <p className="meta">Flèches, glisser ou clic pour jouer. L&apos;éditeur s&apos;ouvre au bout du chargement.</p>
       <button type="button" className="btn btn-ghost btn-sm" onClick={goHome} tabIndex={-1}>
-        Annuler
+        {t("cancel")}
       </button>
     </section>
   );

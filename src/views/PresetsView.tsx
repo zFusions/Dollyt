@@ -12,6 +12,7 @@ import {
   presetRowExportSpec,
   SOCIAL_PRESET_IDS,
 } from "../lib/presetsUi";
+import { t } from "../i18n";
 import { useDollytStore } from "../store";
 
 function PresetPickList({
@@ -41,7 +42,7 @@ function PresetPickList({
             <span className="set-label">
               {p.name}
               {p.id === "quality-max" ? (
-                <span className="pick-row-badge">Qualité max</span>
+                <span className="pick-row-badge">{t("qualityMaxBadge")}</span>
               ) : null}
             </span>
           </span>
@@ -85,11 +86,11 @@ export function PresetsView() {
     try {
       const base = await getSettings();
       if (!base) {
-        setErr("Réglages indisponibles hors application.");
+        setErr(t("settingsUnavailable"));
         return;
       }
       await saveSettings({ ...base, defaultPresetId: id });
-      setMsg("C’est enregistré. L’accueil utilisera ce preset.");
+      setMsg(t("presetSaved"));
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -100,9 +101,9 @@ export function PresetsView() {
   return (
     <div className="page set-page">
       <header className="set-head">
-        <h1 className="page-title">Presets</h1>
+        <h1 className="page-title">{t("presetsTitle")}</h1>
         <p className="page-sub">
-          Choisis où tu envoies la vidéo. Le même réglage suit sur l&apos;accueil.
+          {t("presetsSub")}
         </p>
         <div className="set-head-actions">
           {msg ? <p className="meta">{msg}</p> : null}
@@ -112,7 +113,7 @@ export function PresetsView() {
       {err ? <p className="meta text-warn">{err}</p> : null}
 
       <section className="set-section">
-        <h2 className="set-heading">Réseaux</h2>
+        <h2 className="set-heading">{t("networks")}</h2>
         <Panel>
           <PresetPickList
             items={social}
@@ -125,7 +126,7 @@ export function PresetsView() {
 
       {other.length > 0 ? (
         <section className="set-section">
-          <h2 className="set-heading">Autres</h2>
+          <h2 className="set-heading">{t("others")}</h2>
           <Panel>
             <PresetPickList
               items={other}
@@ -139,7 +140,7 @@ export function PresetsView() {
 
       {active && activeBrief ? (
         <section className="set-section preset-active">
-          <h2 className="set-heading">En bref</h2>
+          <h2 className="set-heading">{t("brief")}</h2>
           <Panel className="panel-pad">
             <p className="preset-active-name">{active.name}</p>
             <p className="preset-active-lead">{activeBrief.lead}</p>
@@ -151,7 +152,7 @@ export function PresetsView() {
               </ul>
             ) : null}
             <p className="meta preset-active-spec mono">
-              Fichier : {presetRowExportSpec(active)}
+              {t("file")}: {presetRowExportSpec(active)}
             </p>
           </Panel>
         </section>
