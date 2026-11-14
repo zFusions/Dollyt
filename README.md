@@ -48,28 +48,6 @@
 - **Bilingual** — French and English, switches instantly
 - **Privacy** — all processing is local; no telemetry, no account, no Dollyt server
 
-## Screenshots
-
-<p align="center">
-  <img src="docs/assets/home-preview.png" alt="Home" width="620"><br>
-  <sub>Home — paste, pick a preset, go</sub>
-</p>
-
-<p align="center">
-  <img src="docs/assets/presets-preview.png" alt="Presets" width="620"><br>
-  <sub>Presets — grouped by network, format badge, details below</sub>
-</p>
-
-<p align="center">
-  <img src="docs/assets/settings-preview.png" alt="Settings" width="620"><br>
-  <sub>Settings — output folder, cookies, updates, developer mode</sub>
-</p>
-
-<p align="center">
-  <img src="docs/assets/queue-preview.png" alt="History" width="620"><br>
-  <sub>History — past exports plus the live export queue</sub>
-</p>
-
 ## Quick start
 
 1. Download the [latest Windows installer](https://github.com/zFusions/Dollyt/releases/latest) and run it (WebView2 Runtime required).
