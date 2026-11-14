@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::time::Duration;
 const PINNED_YTDLP_TAG: &str = "2026.10.26";
 const PINNED_YTDLP_EXE_SHA256: &str =
     "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d";
@@ -34,32 +35,7 @@ pub fn tools() -> Option<&'static ToolPaths> {
 #[serde(rename_all = "camelCase")]
 pub struct YtdlpUpdateResult {
     pub already_latest: bool,
-}
-
-pub fn ensure_ytdlp_only() -> Result<()> {
-    let dir = bin_dir();
-    fs::create_dir_all(&dir)?;
-    let ytdlp = dir.join("yt-dlp.exe");
-    download_ytdlp_release(&ytdlp)?;
-    Ok(())
-}
-
-pub fn update_ytdlp_manual() -> Result<YtdlpUpdateResult> {
-    fs::create_dir_all(bin_dir())?;
-    let dest = bin_dir().join("yt-dlp.exe");
-    let expected = latest_ytdlp_exe_hash()?;
-    if dest.exists() {
-        let current = file_sha256_hex(&dest)?;
-        if current == expected {
-            return Ok(YtdlpUpdateResult {
-                already_latest: true,
-            });
-        }
-    }
-    ensure_ytdlp_only()?;
-    Ok(YtdlpUpdateResult {
-        already_latest: false,
-    })
+    pub version: Option<String>,
 }
 
 pub fn ensure_tools() -> Result<()> {
@@ -69,10 +45,13 @@ pub fn ensure_tools() -> Result<()> {
     let dir = bin_dir();
     fs::create_dir_all(&dir)?;
     let ytdlp = dir.join("yt-dlp.exe");
+    // Un yt-dlp déjà auto-updaté n'a plus le hash épinglé : on accepte tout
+    // binaire qui répond à --version, le hash épinglé reste pour la 1re install.
     let ytdlp_is_verified = ytdlp.exists()
-        && file_sha256_hex(&ytdlp)
+        && (file_sha256_hex(&ytdlp)
             .map(|hash| hash.eq_ignore_ascii_case(PINNED_YTDLP_EXE_SHA256))
-            .unwrap_or(false);
+            .unwrap_or(false)
+            || ytdlp_reported_version(&ytdlp).is_some());
     if !ytdlp_is_verified {
         download_ytdlp_release(&ytdlp)?;
     }
@@ -163,8 +142,87 @@ fn bootstrap_archive_tool(
     Ok(dest.to_path_buf())
 }
 
-fn latest_ytdlp_exe_hash() -> Result<String> {
-    Ok(PINNED_YTDLP_EXE_SHA256.to_string())
+pub fn update_ytdlp_manual() -> Result<YtdlpUpdateResult> {
+    fs::create_dir_all(bin_dir())?;
+    let dest = bin_dir().join("yt-dlp.exe");
+    let latest_tag = latest_ytdlp_tag()?;
+    let installed = ytdlp_reported_version(&dest);
+    if installed
+        .as_deref()
+        .and_then(version_key)
+        .zip(version_key(&latest_tag))
+        .is_some_and(|(have, latest)| have >= latest)
+    {
+        return Ok(YtdlpUpdateResult {
+            already_latest: true,
+            version: installed,
+        });
+    }
+    // yt-dlp ne signe pas ses releases : on télécharge depuis GitHub et on
+    // vérifie que le binaire répond --version avec le bon tag avant de swap.
+    let exe_url =
+        format!("https://github.com/yt-dlp/yt-dlp/releases/download/{latest_tag}/yt-dlp.exe");
+    let tmp = dest.with_extension("tmp");
+    download_bytes(&exe_url, &tmp)?;
+    let Some(version) =
+        ytdlp_reported_version(&tmp).filter(|v| version_key(v) == version_key(&latest_tag))
+    else {
+        fs::remove_file(&tmp).ok();
+        return Err(DollytError::BinDownload(
+            "binaire yt-dlp téléchargé invalide".into(),
+        ));
+    };
+    if dest.exists() {
+        fs::remove_file(&dest)?;
+    }
+    fs::rename(&tmp, dest)?;
+    Ok(YtdlpUpdateResult {
+        already_latest: false,
+        version: Some(version),
+    })
+}
+
+fn ytdlp_reported_version(exe: &Path) -> Option<String> {
+    let output = std::process::Command::new(exe)
+        .arg("--version")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let version = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()?
+        .to_string();
+    version_key(&version).map(|_| version)
+}
+
+fn version_key(version: &str) -> Option<(u64, u64, u64)> {
+    let core = version
+        .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .find(|s| !s.is_empty())?;
+    let mut parts = core.split('.').filter_map(|p| p.parse::<u64>().ok());
+    Some((
+        parts.next()?,
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    ))
+}
+
+fn latest_ytdlp_tag() -> Result<String> {
+    let response = ureq::get("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest")
+        .set("User-Agent", concat!("Dollyt/", env!("CARGO_PKG_VERSION")))
+        .set("Accept", "application/vnd.github+json")
+        .timeout(Duration::from_secs(30))
+        .call()
+        .map_err(|e| DollytError::BinDownload(e.to_string()))?;
+    let body: serde_json::Value = serde_json::from_reader(response.into_reader())
+        .map_err(|e| DollytError::BinDownload(format!("réponse GitHub illisible : {e}")))?;
+    body.get("tag_name")
+        .and_then(|v| v.as_str())
+        .map(|tag| tag.trim().trim_start_matches('v').to_string())
+        .filter(|tag| !tag.is_empty())
+        .ok_or_else(|| DollytError::BinDownload("release yt-dlp introuvable".into()))
 }
 
 fn file_sha256_hex(path: &Path) -> Result<String> {
@@ -219,11 +277,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn uses_pinned_ytdlp_hash() {
-        let hash = latest_ytdlp_exe_hash().expect("hash");
-        assert_eq!(
-            hash,
-            "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d"
-        );
+    fn version_key_orders_release_dates() {
+        assert!(version_key("2026.11.01") > version_key("2026.10.26"));
+        assert_eq!(version_key("2026.10.26"), version_key("2026.10.26"));
+        assert!(version_key("2026.10.26.1").is_some());
+        assert!(version_key("n/a").is_none());
     }
 }

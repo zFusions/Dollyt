@@ -161,7 +161,16 @@ fn export_section_impl(
                 if let Some(crf) = &crf {
                     match vcodec.as_str() {
                         "h264_nvenc" => args.extend(["-cq", crf.as_str()]),
-                        "h264_amf" => args.extend(["-rc", "cqp", "-qp_i", crf.as_str()]),
+                        "h264_amf" => args.extend([
+                            "-rc",
+                            "cqp",
+                            "-qp_i",
+                            crf.as_str(),
+                            "-qp_p",
+                            crf.as_str(),
+                            "-qp_b",
+                            crf.as_str(),
+                        ]),
                         _ => args.extend(["-crf", crf.as_str()]),
                     }
                 }
@@ -185,14 +194,19 @@ fn export_section_impl(
                 args.push("-r");
                 args.push(fps.as_str());
             }
+            // -pix_fmt est impossible en stream copy : il forcerait un
+            // ré-encodage que le preset copy veut justement éviter.
+            if vcodec != "copy" {
+                args.extend(["-pix_fmt", "yuv420p"]);
+            }
             args.extend(["-c:a", preset.audio_codec.as_str()]);
             if !ab.is_empty() {
                 args.extend(["-b:a", ab.as_str()]);
             }
         }
     }
-    let out_str = out_path.to_str().expect("chemin UTF-8");
-    args.push(out_str);
+    let out_str = out_path.to_string_lossy();
+    args.push(out_str.as_ref());
     let on_media_time = on_encode.map(|cb| {
         let duration = duration.max(0.001);
         Arc::new(move |secs: f64| cb((secs / duration).clamp(0.0, 1.0)))
@@ -204,7 +218,7 @@ fn export_section_impl(
     };
     ensure_success(&output)?;
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
-    let output_duration_secs = probe_duration_secs(out_str)?;
+    let output_duration_secs = probe_duration_secs(&out_str)?;
     Ok(CutResult {
         path: out_path.to_string_lossy().into_owned(),
         output_duration_secs,
@@ -350,10 +364,13 @@ fn video_filter_for_preset(preset: &Preset) -> Option<String> {
         return None;
     }
     if preset.crop == "center" && w < h {
-        return Some("scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920".into());
+        return Some(
+            "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,setsar=1:1"
+                .into(),
+        );
     }
     Some(format!(
-        "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2"
+        "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,format=yuv420p,setsar=1:1"
     ))
 }
 
@@ -397,7 +414,7 @@ pub fn remux_download_preview(source: &str) -> Result<String> {
         let _ = fs::create_dir_all(parent);
     }
     let _ = fs::remove_file(&out);
-    let out_str = out.to_str().expect("chemin UTF-8");
+    let out_str = out.to_string_lossy();
     let output = process::run_ffmpeg(&[
         "-y",
         "-i",
@@ -410,7 +427,7 @@ pub fn remux_download_preview(source: &str) -> Result<String> {
         "192k",
         "-movflags",
         "+faststart",
-        out_str,
+        out_str.as_ref(),
     ])?;
     ensure_success(&output)?;
     Ok(out.to_string_lossy().into_owned())
@@ -420,7 +437,7 @@ pub fn remux_download_preview(source: &str) -> Result<String> {
 pub fn remux_preview_mp4(mkv_path: &str) -> Result<String> {
     let out = crate::storage::preview_mp4_path();
     let _ = fs::remove_file(&out);
-    let out_str = out.to_str().expect("chemin UTF-8");
+    let out_str = out.to_string_lossy();
     let output = process::run_ffmpeg(&[
         "-y",
         "-i",
@@ -433,7 +450,7 @@ pub fn remux_preview_mp4(mkv_path: &str) -> Result<String> {
         "192k",
         "-movflags",
         "+faststart",
-        out_str,
+        out_str.as_ref(),
     ])?;
     ensure_success(&output)?;
     Ok(out.to_string_lossy().into_owned())

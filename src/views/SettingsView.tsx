@@ -127,15 +127,16 @@ export function SettingsView() {
     setMsg("");
     try {
       const result = await updateYtdlp();
+      const version = result?.version ? ` (${result.version})` : "";
       if (result?.alreadyLatest) {
         setNotice({
           title: "yt-dlp",
-          message: t("ytdlpLatest"),
+          message: `${t("ytdlpLatest")}${version}`,
         });
       } else {
         setNotice({
           title: "yt-dlp",
-          message: t("ytdlpRechecked"),
+          message: `${t("ytdlpUpdated")}${version}`,
         });
       }
     } catch (e) {

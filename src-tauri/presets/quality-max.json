@@ -12,5 +12,5 @@
   "audioBitrateKbps": null,
   "videoMaxBitrateKbps": null,
   "nameTemplate": "{titre}_depuis-{debut}s_jusqu-a-{fin}s",
-  "description": "Meilleur flux YouTube en copie MKV, sans ré-encodage ni plafond Mbps."
+  "description": "Meilleur flux YouTube en copie MKV, sans ré-encodage ni plafond Mbps. Le début du clip peut être décalé jusqu’à l’image clé la plus proche."
 }

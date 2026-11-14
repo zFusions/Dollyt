@@ -11,8 +11,6 @@ export type VideoInfo = {
   exportFormatId: string;
   previewFps: number;
   previewFileDurationSecs?: number | null;
-  width?: number | null;
-  height?: number | null;
   /** Début de la fenêtre preview locale sur la timeline YouTube. */
   previewStartSecs?: number | null;
 };
@@ -159,20 +157,6 @@ export async function getTimelineFilmstrip(args: {
   return raw.frames ?? [];
 }
 
-export async function probeVideoSize(
-  rawUrl: string,
-): Promise<{ width: number; height: number } | null> {
-  if (!isTauri()) return null;
-  try {
-    return await invoke<{ width: number; height: number }>(
-      "probe_video_size",
-      { rawUrl },
-    );
-  } catch {
-    return null;
-  }
-}
-
 export async function startCutJob(args: {
   rawUrl: string;
   formatId: string;
@@ -207,7 +191,10 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await invoke("save_settings_cmd", { settings });
 }
 
-export type YtdlpUpdateResult = { alreadyLatest: boolean };
+export type YtdlpUpdateResult = {
+  alreadyLatest: boolean;
+  version?: string | null;
+};
 
 export async function updateYtdlp(): Promise<YtdlpUpdateResult | null> {
   if (!isTauri()) return { alreadyLatest: true };

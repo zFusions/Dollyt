@@ -2,7 +2,6 @@ use crate::bins;
 use crate::jobs::{JobsState, start_cut_job};
 use crate::log;
 use crate::presets::{self, Preset};
-use crate::process;
 use crate::settings::{self, Settings};
 use crate::storyboard::{self, StoryboardInfo};
 use crate::url;
@@ -55,47 +54,6 @@ pub async fn load_video(raw_url: String) -> Result<LoadVideoResponse, String> {
         let video = ytdlp::video_info_from_json(&value).map_err(|e| e.to_string())?;
         let storyboard = storyboard::parse_storyboard(&value);
         Ok(LoadVideoResponse { video, storyboard })
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VideoSize {
-    pub width: u32,
-    pub height: u32,
-}
-
-/// Dimensions vidéo sans charger toute la metadata : pour les warnings UI.
-#[tauri::command]
-pub async fn probe_video_size(raw_url: String) -> Result<VideoSize, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let url = url::validate_youtube_url(&raw_url).map_err(|e| e.to_string())?;
-        let output =
-            process::run_ytdlp(&["--no-playlist", "--print", "%(width)s %(height)s", &url])
-                .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err("Impossible de lire les dimensions de la vidéo.".into());
-        }
-        let line = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .find(|l| l.trim().chars().all(|c| c.is_ascii_digit() || c == ' '))
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        let mut parts = line.split_whitespace();
-        let width = parts
-            .next()
-            .and_then(|v| v.parse::<u32>().ok())
-            .filter(|v| *v > 0)
-            .ok_or_else(|| "Dimensions de la vidéo indisponibles.".to_string())?;
-        let height = parts
-            .next()
-            .and_then(|v| v.parse::<u32>().ok())
-            .filter(|v| *v > 0)
-            .ok_or_else(|| "Dimensions de la vidéo indisponibles.".to_string())?;
-        Ok(VideoSize { width, height })
     })
     .await
     .map_err(|e| e.to_string())?
