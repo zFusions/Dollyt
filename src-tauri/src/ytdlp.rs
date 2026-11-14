@@ -66,7 +66,11 @@ fn ytdlp_user_message(stderr: &str) -> String {
         return "Vidéo privée ou inaccessible.".into();
     }
     if s.len() > 320 {
-        format!("{}…", &s[..320])
+        let mut end = 320;
+        while !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}…", &s[..end])
     } else if s.is_empty() {
         "yt-dlp n'a pas renvoyé de métadonnées.".into()
     } else {

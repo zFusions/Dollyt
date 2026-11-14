@@ -24,6 +24,8 @@ pub enum DollytError {
     Cancelled,
     #[error("preset introuvable : {0}")]
     PresetNotFound(String),
+    #[error("preset invalide : {0}")]
+    InvalidPreset(String),
 }
 
 pub type Result<T> = std::result::Result<T, DollytError>;

@@ -56,7 +56,33 @@ pub fn get_builtin(id: &str) -> Result<Preset> {
 }
 
 fn parse_preset(raw: &str) -> Result<Preset> {
-    serde_json::from_str(raw).map_err(DollytError::from)
+    let preset: Preset = serde_json::from_str(raw)?;
+    validate_preset(&preset)?;
+    Ok(preset)
+}
+
+const CONTAINERS: &[&str] = &[
+    "mp4", "mkv", "webm", "mov", "mp3", "flac", "wav", "m4a", "aac", "opus",
+];
+const VIDEO_CODECS: &[&str] = &["libx264", "h264_nvenc", "h264_amf", "copy", "none"];
+const AUDIO_CODECS: &[&str] = &["aac", "libmp3lame", "flac", "copy", "opus", "pcm_s16le"];
+const CROPS: &[&str] = &["none", "center"];
+
+fn validate_preset(p: &Preset) -> Result<()> {
+    let bad = |field: &str| DollytError::InvalidPreset(format!("{field} non supporté"));
+    if !CONTAINERS.contains(&p.container.as_str()) {
+        return Err(bad("container"));
+    }
+    if !VIDEO_CODECS.contains(&p.video_codec.as_str()) {
+        return Err(bad("videoCodec"));
+    }
+    if !AUDIO_CODECS.contains(&p.audio_codec.as_str()) {
+        return Err(bad("audioCodec"));
+    }
+    if !CROPS.contains(&p.crop.as_str()) {
+        return Err(bad("crop"));
+    }
+    Ok(())
 }
 
 pub fn user_presets_dir() -> PathBuf {
