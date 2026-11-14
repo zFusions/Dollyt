@@ -54,6 +54,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::load_video,
+            commands::probe_video_size,
             commands::reveal_file,
             commands::resolve_preview_url,
             commands::start_local_preview,

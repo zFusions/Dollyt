@@ -4,6 +4,7 @@ import {
   getSettings,
   listPresets,
   loadVideo,
+  probeVideoSize,
   startCutJob,
   type Preset,
 } from "../api/dollyt";
@@ -31,7 +32,6 @@ export function HomeView() {
   const endSecs = useDollytStore((s) => s.endSecs);
   const setRangeSecs = useDollytStore((s) => s.setRangeSecs);
   const selectedPresetId = useDollytStore((s) => s.selectedPresetId);
-  const video = useDollytStore((s) => s.video);
   const setSelectedPresetId = useDollytStore((s) => s.setSelectedPresetId);
   const exportFullVideo = useDollytStore((s) => s.exportFullVideo);
   const setExportFullVideo = useDollytStore((s) => s.setExportFullVideo);
@@ -40,7 +40,28 @@ export function HomeView() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [probeSize, setProbeSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const probeSeq = useRef(0);
   const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const invalid = validateYoutubeUrl(url);
+    const target = invalid ? "" : normalizeYoutubeUrl(url);
+    if (!isTauri() || !target) {
+      setProbeSize(null);
+      return;
+    }
+    const seq = ++probeSeq.current;
+    const timer = setTimeout(() => {
+      void probeVideoSize(target).then((size) => {
+        if (probeSeq.current === seq) setProbeSize(size);
+      });
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [url]);
 
   useEffect(() => {
     listPresets()
@@ -154,11 +175,10 @@ export function HomeView() {
   }
 
   const selectedPreset = presets.find((p) => p.id === selectedPresetId);
+  const dimsW = probeSize?.width ?? 0;
+  const dimsH = probeSize?.height ?? 0;
   const showCropWarning =
-    selectedPreset?.crop === "center" &&
-    !!video?.width &&
-    !!video?.height &&
-    video.width >= video.height;
+    selectedPreset?.crop === "center" && dimsW > 0 && dimsH > 0 && dimsW >= dimsH;
 
   return (
     <div className="home-hero">

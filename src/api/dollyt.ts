@@ -159,6 +159,20 @@ export async function getTimelineFilmstrip(args: {
   return raw.frames ?? [];
 }
 
+export async function probeVideoSize(
+  rawUrl: string,
+): Promise<{ width: number; height: number } | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<{ width: number; height: number }>(
+      "probe_video_size",
+      { rawUrl },
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function startCutJob(args: {
   rawUrl: string;
   formatId: string;
