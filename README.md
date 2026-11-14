@@ -35,15 +35,15 @@
 | **Paste** | Any YouTube URL — clip or full video |
 | **Pick** | TikTok 9:16, Reels, Shorts, YouTube 16:9, X, raw source, local quality, max quality, MP3 320k or lossless FLAC |
 | **Queue** | Stack exports — they run one at a time in the background while you keep working (or play Snake) |
-| **Get** | The file lands in your folder; preview it in-app, re-open it from History |
+| **Get** | The file lands in your folder; preview completed exports in-app and find them again in History |
 
 ## Features
 
-- **Local preview** — watch the video in-app before exporting
+- **Export preview** — preview a completed video or audio export in-app
 - **Export queue** — multiple jobs, live progress per job, per-job cancel
 - **Audio exports** — MP3 320k or FLAC lossless, with a custom audio player
 - **FFmpeg encoding** — optional hardware encoding (NVIDIA NVENC or AMD AMF)
-- **History** — every export saved locally, re-open or re-export anytime
+- **History** — every completed export is saved locally; open its location or remove its history entry
 - **Snake** — a tiny game that keeps you company during long exports, with a persistent high score
 - **Bilingual** — French and English, switches instantly
 - **Privacy** — all processing is local; no telemetry, no account, no Dollyt server
@@ -51,7 +51,7 @@
 ## Quick start
 
 1. Download the [latest Windows installer](https://github.com/zFusions/Dollyt/releases/latest) and run it (WebView2 Runtime required).
-2. On first launch, FFmpeg, ffprobe, yt-dlp and Deno are downloaded from pinned official releases and verified with SHA-256.
+2. On first launch, Dollyt downloads yt-dlp, FFmpeg, ffprobe and Deno from official GitHub releases in the background. Initial pinned downloads are SHA-256 checked. Later launches use local install markers instead of hashing or running version checks again. Export is enabled when setup finishes; if setup fails, retry it in the app.
 3. Paste a YouTube URL, pick a preset, export.
 
 ## Requirements
@@ -87,11 +87,11 @@ cargo clippy --manifest-path src-tauri\Cargo.toml -- -D warnings
 cargo fmt --manifest-path src-tauri\Cargo.toml -- --check
 ```
 
-The React frontend owns navigation, editor state and history. Tauri commands form a narrow boundary to the Rust backend: URL validation, yt-dlp extraction, FFmpeg processing, progress events. Settings and presets live in `%LOCALAPPDATA%\Dollyt`. See [docs/INFRA.md](docs/INFRA.md) for the data-flow map.
+The React frontend owns navigation, export state and history. Tauri commands form a narrow boundary to the Rust backend: URL validation, yt-dlp extraction, FFmpeg processing and progress events. Settings and user presets live in `%LOCALAPPDATA%\Dollyt`. The timeline editor remains in the source but is quarantined in this release. See [docs/INFRA.md](docs/INFRA.md) for the data-flow map.
 
 ## Privacy and legal notice
 
-Dollyt has no server, no telemetry and no account system. Network traffic goes to YouTube/googlevideo for media work and to GitHub for the pinned yt-dlp release. Use it only on content you're allowed to download and process. Dollyt is not affiliated with YouTube and does not bypass DRM.
+Dollyt has no server, no telemetry and no account system. Network traffic goes to YouTube/googlevideo for media work and to GitHub for initial tool downloads, yt-dlp updates and application updates. Initial tool packages are pinned and hash-checked; yt-dlp self-updates use the latest official GitHub release and validate the reported version because yt-dlp does not sign its binary. Use Dollyt only on content you're allowed to download and process. Dollyt is not affiliated with YouTube and does not bypass DRM.
 
 ## Contributing
 

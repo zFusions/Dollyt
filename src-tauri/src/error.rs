@@ -26,6 +26,8 @@ pub enum DollytError {
     PresetNotFound(String),
     #[error("preset invalide : {0}")]
     InvalidPreset(String),
+    #[error("réglages invalides")]
+    InvalidSettings,
 }
 
 pub type Result<T> = std::result::Result<T, DollytError>;

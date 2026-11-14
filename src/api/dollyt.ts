@@ -93,6 +93,19 @@ export async function cancelLocalPreview(): Promise<void> {
   await invoke("cancel_local_preview");
 }
 
+let toolsInitialization: Promise<void> | null = null;
+
+export function initializeTools(): Promise<void> {
+  if (!isTauri()) return Promise.resolve();
+  if (!toolsInitialization) {
+    toolsInitialization = invoke<void>("initialize_tools").catch((error) => {
+      toolsInitialization = null;
+      throw error;
+    });
+  }
+  return toolsInitialization;
+}
+
 export async function startLocalPreview(
   rawUrl: string,
   formatId: string,

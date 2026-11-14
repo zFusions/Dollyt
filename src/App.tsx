@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { AppShell } from "./components/AppShell";
 import { useDeferredScreen } from "./hooks/useDeferredScreen";
 import { EditorErrorBoundary } from "./components/EditorErrorBoundary";
-import { getSettings } from "./api/dollyt";
+import { getSettings, initializeTools } from "./api/dollyt";
 import { EDITOR_QUARANTINED } from "./editorAvailability";
 import { useDollytStore } from "./store";
 import { EditorOpeningView } from "./views/EditorOpeningView";
@@ -17,6 +17,7 @@ import { t, useLocale } from "./i18n";
 import { DownloadView } from "./views/DownloadView";
 import { useAppUpdater } from "./hooks/useAppUpdater";
 import { getLeaveGuard } from "./lib/leaveGuard";
+import { bufferJobFinished, bufferJobProgress } from "./lib/jobEventBuffer.mjs";
 import { UnsavedGuardDialog } from "./components/UnsavedGuardDialog";
 import type { Screen } from "./store";
 
@@ -41,6 +42,30 @@ function App() {
   const [pendingNav, setPendingNav] = useState<Screen | null>(null);
   const [guardBusy, setGuardBusy] = useState(false);
   const [guardError, setGuardError] = useState("");
+  const [toolsState, setToolsState] = useState<"loading" | "ready" | "error">(
+    isTauri() ? "loading" : "ready",
+  );
+  const [toolsError, setToolsError] = useState("");
+  const [toolsAttempt, setToolsAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    setToolsState("loading");
+    setToolsError("");
+    initializeTools()
+      .then(() => {
+        if (active) setToolsState("ready");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setToolsError(String(error));
+        setToolsState("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [toolsAttempt]);
 
   useEffect(() => {
     document.body.classList.toggle("unsaved-guard", pendingNav !== null);
@@ -125,7 +150,7 @@ function App() {
             setDownloadProgress(stage, percent);
           }
         } else {
-          setDownloadProgress(stage, percent);
+          bufferJobProgress(jobId, { stage, percent });
         }
       },
     ).then((unsubscribe) => unsubs.push(unsubscribe));
@@ -142,37 +167,31 @@ function App() {
         const { jobId, ok, message, outputPath, previewPath } = event.payload;
         const state = useDollytStore.getState();
         const job = state.jobs.find((item) => item.id === jobId);
+        if (!job) {
+          bufferJobFinished(jobId, {
+            ok,
+            message,
+            outputPath,
+            previewPath,
+          });
+          return;
+        }
         const wasActive = state.activeJobId === jobId;
         finishJob(jobId, ok, message, previewPath ?? "", outputPath ?? "");
-        if (job) {
-          if (ok && outputPath) {
-            addHistory({
-              id: `${Date.now()}-${outputPath}`,
-              title: job.title || t("untitledVideo"),
-              url: job.url,
-              outputPath,
-              thumbnailUrl: job.thumbnailUrl || "",
-              kind: job.kind,
-              startSecs: job.startSecs,
-              endSecs: job.endSecs,
-              createdAt: Date.now(),
-            });
-          }
-        } else if (ok && outputPath) {
-          const current = useDollytStore.getState();
+        if (ok && outputPath) {
           addHistory({
             id: `${Date.now()}-${outputPath}`,
-            title: current.video?.title || t("untitledVideo"),
-            url: current.url,
+            title: job.title || t("untitledVideo"),
+            url: job.url,
             outputPath,
-            thumbnailUrl: current.video?.thumbnailUrl || "",
-            kind: current.exportFullVideo ? "full" : "clip",
-            startSecs: current.startSecs,
-            endSecs: current.endSecs,
+            thumbnailUrl: job.thumbnailUrl || "",
+            kind: job.kind,
+            startSecs: job.startSecs,
+            endSecs: job.endSecs,
             createdAt: Date.now(),
           });
         }
-        if (wasActive || !job) {
+        if (wasActive) {
           finishDownload(
             ok,
             message,
@@ -200,7 +219,7 @@ function App() {
     if (EDITOR_QUARANTINED && screen === "editor") go("home");
   }, [screen, go]);
 
-  let body = <HomeView />;
+  let body = <HomeView toolsReady={toolsState === "ready"} />;
   if (shownScreen === "download") {
     body = <DownloadView />;
   } else if (!EDITOR_QUARANTINED && shownScreen === "editor") {
@@ -217,6 +236,24 @@ function App() {
     body = <SettingsView />;
   } else if (shownScreen === "queue") {
     body = <QueueView />;
+  }
+
+  if (toolsState === "error") {
+    return (
+      <main className="tools-init-screen">
+        <section className="tools-init-card" aria-live="polite">
+          <h1>{t("toolsSetupFailed")}</h1>
+          <p>{toolsError}</p>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => setToolsAttempt((attempt) => attempt + 1)}
+          >
+            {t("retryTools")}
+          </button>
+        </section>
+      </main>
+    );
   }
 
   return (

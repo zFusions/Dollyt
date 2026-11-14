@@ -1,3 +1,4 @@
+mod atomic_file;
 mod bins;
 mod commands;
 mod error;
@@ -27,24 +28,6 @@ pub fn run() {
         .manage(Arc::new(JobsState::default()))
         .setup(|app| {
             win_priority::boost_app_process();
-            if let Err(error) = bins::ensure_tools() {
-                log::log_line(&format!(
-                    "installation des binaires impossible, réessayez plus tard: {error}"
-                ));
-            }
-            match settings::load() {
-                Ok(config) if config.auto_update_ytdlp => {
-                    if let Err(error) = bins::update_ytdlp_manual() {
-                        log::log_line(&format!("mise à jour automatique yt-dlp échouée: {error}"));
-                    }
-                }
-                Ok(_) => {}
-                Err(error) => {
-                    log::log_line(&format!(
-                        "impossible de lire le réglage de mise à jour yt-dlp: {error}"
-                    ));
-                }
-            }
             let _ = storage::prune_on_startup();
             log::log_line("application démarrée");
             if let Some(w) = app.get_webview_window("main") {
@@ -53,6 +36,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::initialize_tools,
             commands::load_video,
             commands::reveal_file,
             commands::resolve_preview_url,

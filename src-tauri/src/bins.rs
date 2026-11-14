@@ -3,7 +3,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 const PINNED_YTDLP_TAG: &str = "2026.10.26";
 const PINNED_YTDLP_EXE_SHA256: &str =
@@ -26,6 +26,8 @@ pub struct ToolPaths {
 }
 
 static TOOLS: OnceLock<ToolPaths> = OnceLock::new();
+static TOOL_INIT_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+static YTDLP_UPDATE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn tools() -> Option<&'static ToolPaths> {
     TOOLS.get()
@@ -42,39 +44,28 @@ pub fn ensure_tools() -> Result<()> {
     if TOOLS.get().is_some() {
         return Ok(());
     }
+    let _guard = TOOL_INIT_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if TOOLS.get().is_some() {
+        return Ok(());
+    }
     let dir = bin_dir();
     fs::create_dir_all(&dir)?;
     let ytdlp = dir.join("yt-dlp.exe");
-    // Un yt-dlp déjà auto-updaté n'a plus le hash épinglé : on accepte tout
-    // binaire qui répond à --version, le hash épinglé reste pour la 1re install.
-    let ytdlp_is_verified = ytdlp.exists()
-        && (file_sha256_hex(&ytdlp)
-            .map(|hash| hash.eq_ignore_ascii_case(PINNED_YTDLP_EXE_SHA256))
-            .unwrap_or(false)
-            || ytdlp_reported_version(&ytdlp).is_some());
+    let ytdlp_is_verified = ensure_ytdlp_install_marker(&ytdlp)?;
     if !ytdlp_is_verified {
         download_ytdlp_release(&ytdlp)?;
     }
-    let ffmpeg = bootstrap_archive_tool(
-        "ffmpeg.exe",
-        &dir.join("ffmpeg.exe"),
-        PINNED_FFMPEG_ARCHIVE_URL,
-        PINNED_FFMPEG_ARCHIVE_SHA256,
-        "/bin/ffmpeg.exe",
-    )?;
-    let ffprobe = bootstrap_archive_tool(
-        "ffprobe.exe",
-        &dir.join("ffprobe.exe"),
-        PINNED_FFMPEG_ARCHIVE_URL,
-        PINNED_FFMPEG_ARCHIVE_SHA256,
-        "/bin/ffprobe.exe",
-    )?;
+    let (ffmpeg, ffprobe) = bootstrap_ffmpeg_tools(&dir)?;
     let deno = bootstrap_archive_tool(
         "deno.exe",
         &dir.join("deno.exe"),
         PINNED_DENO_ARCHIVE_URL,
         PINNED_DENO_ARCHIVE_SHA256,
         "deno.exe",
+        "--version",
     )?;
     let paths = ToolPaths {
         ytdlp,
@@ -102,10 +93,12 @@ fn bootstrap_archive_tool(
     url: &str,
     expected_hash: &str,
     archive_suffix: &str,
+    version_flag: &str,
 ) -> Result<PathBuf> {
-    if dest.exists() {
+    if installed_tool_manifest_present(dest) || adopt_legacy_tool(dest, version_flag) {
         return Ok(dest.to_path_buf());
     }
+    let hash_path = dest.with_extension("sha256");
     let archive_path = dest.with_extension("zip");
     download_bytes(url, &archive_path)?;
     if let Err(error) = verify_file_sha256_value(&archive_path, expected_hash, name) {
@@ -125,13 +118,13 @@ fn bootstrap_archive_tool(
         if !entry_name.ends_with(archive_suffix) || entry_name.contains("../") {
             continue;
         }
-        let temporary = dest.with_extension("tmp");
+        let temporary = dest.with_extension("tmp.exe");
         let mut output = fs::File::create(&temporary)?;
         std::io::copy(&mut entry, &mut output)?;
-        if dest.exists() {
-            fs::remove_file(dest)?;
-        }
-        fs::rename(temporary, dest)?;
+        output.sync_all()?;
+        let hash = file_sha256_hex(&temporary)?;
+        crate::atomic_file::replace_file(&temporary, dest)?;
+        fs::write(hash_path, hash)?;
         found = true;
         break;
     }
@@ -142,7 +135,153 @@ fn bootstrap_archive_tool(
     Ok(dest.to_path_buf())
 }
 
+fn bootstrap_ffmpeg_tools(dir: &Path) -> Result<(PathBuf, PathBuf)> {
+    let ffmpeg = dir.join("ffmpeg.exe");
+    let ffprobe = dir.join("ffprobe.exe");
+    let need_ffmpeg =
+        !(installed_tool_manifest_present(&ffmpeg) || adopt_legacy_tool(&ffmpeg, "-version"));
+    let need_ffprobe =
+        !(installed_tool_manifest_present(&ffprobe) || adopt_legacy_tool(&ffprobe, "-version"));
+    if !need_ffmpeg && !need_ffprobe {
+        return Ok((ffmpeg, ffprobe));
+    }
+
+    let archive_path = dir.join("ffmpeg.zip");
+    download_bytes(PINNED_FFMPEG_ARCHIVE_URL, &archive_path)?;
+    if let Err(error) = verify_file_sha256_value(
+        &archive_path,
+        PINNED_FFMPEG_ARCHIVE_SHA256,
+        "ffmpeg archive",
+    ) {
+        fs::remove_file(&archive_path).ok();
+        return Err(error);
+    }
+    let file = fs::File::open(&archive_path)?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|error| DollytError::BinDownload(error.to_string()))?;
+    let mut found_ffmpeg = !need_ffmpeg;
+    let mut found_ffprobe = !need_ffprobe;
+    for index in 0..archive.len() {
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|error| DollytError::BinDownload(error.to_string()))?;
+        let entry_name = entry.name().replace('\\', "/");
+        let (dest, found, suffix) =
+            if need_ffmpeg && entry_name.ends_with("/bin/ffmpeg.exe") && !found_ffmpeg {
+                (&ffmpeg, &mut found_ffmpeg, "/bin/ffmpeg.exe")
+            } else if need_ffprobe && entry_name.ends_with("/bin/ffprobe.exe") && !found_ffprobe {
+                (&ffprobe, &mut found_ffprobe, "/bin/ffprobe.exe")
+            } else {
+                continue;
+            };
+        if !entry_name.ends_with(suffix) || entry_name.contains("../") {
+            continue;
+        }
+        let temporary = dest.with_extension("tmp.exe");
+        let mut output = fs::File::create(&temporary)?;
+        std::io::copy(&mut entry, &mut output)?;
+        output.sync_all()?;
+        let hash = file_sha256_hex(&temporary)?;
+        crate::atomic_file::replace_file(&temporary, dest)?;
+        fs::write(dest.with_extension("sha256"), hash)?;
+        *found = true;
+    }
+    fs::remove_file(&archive_path).ok();
+    if !found_ffmpeg {
+        return Err(DollytError::BinMissing("ffmpeg.exe".into()));
+    }
+    if !found_ffprobe {
+        return Err(DollytError::BinMissing("ffprobe.exe".into()));
+    }
+    Ok((ffmpeg, ffprobe))
+}
+
+fn installed_tool_manifest_present(dest: &Path) -> bool {
+    if !dest.is_file() {
+        return false;
+    }
+    let Ok(expected) = fs::read_to_string(dest.with_extension("sha256")) else {
+        return false;
+    };
+    let expected = expected.trim();
+    expected.len() == 64 && expected.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn ytdlp_marker_path(dest: &Path) -> PathBuf {
+    dest.with_extension("verified")
+}
+
+fn ytdlp_install_marker_present(dest: &Path) -> bool {
+    if !dest.is_file() {
+        return false;
+    }
+    fs::read_to_string(ytdlp_marker_path(dest))
+        .ok()
+        .is_some_and(|version| version_key(version.trim()).is_some())
+}
+
+fn ensure_ytdlp_install_marker(dest: &Path) -> Result<bool> {
+    if ytdlp_install_marker_present(dest) {
+        return Ok(true);
+    }
+    if !dest.is_file() {
+        return Ok(false);
+    }
+    let pinned_hash_matches =
+        file_sha256_hex(dest).is_ok_and(|hash| hash.eq_ignore_ascii_case(PINNED_YTDLP_EXE_SHA256));
+    if pinned_hash_matches {
+        write_ytdlp_install_marker(dest, PINNED_YTDLP_TAG)?;
+        return Ok(true);
+    }
+    if let Some(version) = ytdlp_reported_version(dest) {
+        write_ytdlp_install_marker(dest, &version)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+fn write_ytdlp_install_marker(dest: &Path, version: &str) -> Result<()> {
+    let marker = ytdlp_marker_path(dest);
+    let temporary = marker.with_extension("verified.tmp");
+    fs::write(&temporary, version)?;
+    crate::atomic_file::replace_file(&temporary, &marker)?;
+    Ok(())
+}
+
+// Installs d'avant les manifestes : exe présent sans .sha256. On vérifie
+// qu'il répond à sa commande de version puis on adopte son hash comme
+// référence, sinon on retombe sur le téléchargement épinglé.
+fn adopt_legacy_tool(dest: &Path, version_flag: &str) -> bool {
+    if dest.with_extension("sha256").exists() || !dest.is_file() {
+        return false;
+    }
+    let mut command = std::process::Command::new(dest);
+    command.arg(version_flag);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let runs = command
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false);
+    if !runs {
+        return false;
+    }
+    let Ok(hash) = file_sha256_hex(dest) else {
+        return false;
+    };
+    fs::write(dest.with_extension("sha256"), hash).is_ok()
+}
+
 pub fn update_ytdlp_manual() -> Result<YtdlpUpdateResult> {
+    let _guard = YTDLP_UPDATE_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     fs::create_dir_all(bin_dir())?;
     let dest = bin_dir().join("yt-dlp.exe");
     let latest_tag = latest_ytdlp_tag()?;
@@ -162,7 +301,7 @@ pub fn update_ytdlp_manual() -> Result<YtdlpUpdateResult> {
     // vérifie que le binaire répond --version avec le bon tag avant de swap.
     let exe_url =
         format!("https://github.com/yt-dlp/yt-dlp/releases/download/{latest_tag}/yt-dlp.exe");
-    let tmp = dest.with_extension("tmp");
+    let tmp = dest.with_extension("update.tmp.exe");
     download_bytes(&exe_url, &tmp)?;
     let Some(version) =
         ytdlp_reported_version(&tmp).filter(|v| version_key(v) == version_key(&latest_tag))
@@ -172,10 +311,8 @@ pub fn update_ytdlp_manual() -> Result<YtdlpUpdateResult> {
             "binaire yt-dlp téléchargé invalide".into(),
         ));
     };
-    if dest.exists() {
-        fs::remove_file(&dest)?;
-    }
-    fs::rename(&tmp, dest)?;
+    crate::atomic_file::replace_file(&tmp, &dest)?;
+    write_ytdlp_install_marker(&dest, &version)?;
     Ok(YtdlpUpdateResult {
         already_latest: false,
         version: Some(version),
@@ -183,10 +320,14 @@ pub fn update_ytdlp_manual() -> Result<YtdlpUpdateResult> {
 }
 
 fn ytdlp_reported_version(exe: &Path) -> Option<String> {
-    let output = std::process::Command::new(exe)
-        .arg("--version")
-        .output()
-        .ok()?;
+    let mut command = std::process::Command::new(exe);
+    command.arg("--version");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let output = command.output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -226,21 +367,30 @@ fn latest_ytdlp_tag() -> Result<String> {
 }
 
 fn file_sha256_hex(path: &Path) -> Result<String> {
-    let bytes = fs::read(path)?;
-    Ok(hex::encode(Sha256::digest(&bytes)))
+    use std::io::Read;
+
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hex::encode(hasher.finalize()))
 }
 
 fn download_ytdlp_release(dest: &Path) -> Result<()> {
     let exe_url =
         format!("https://github.com/yt-dlp/yt-dlp/releases/download/{PINNED_YTDLP_TAG}/yt-dlp.exe");
     let expected = PINNED_YTDLP_EXE_SHA256;
-    let tmp = dest.with_extension("tmp");
+    let tmp = dest.with_extension("install.tmp.exe");
     download_bytes(&exe_url, &tmp)?;
     verify_file_sha256(&tmp, expected)?;
-    if dest.exists() {
-        fs::remove_file(dest)?;
-    }
-    fs::rename(&tmp, dest)?;
+    crate::atomic_file::replace_file(&tmp, dest)?;
+    write_ytdlp_install_marker(dest, PINNED_YTDLP_TAG)?;
     Ok(())
 }
 
@@ -260,9 +410,7 @@ fn verify_file_sha256(path: &Path, expected: &str) -> Result<()> {
 }
 
 fn verify_file_sha256_value(path: &Path, expected: &str, tool: &str) -> Result<()> {
-    let bytes = fs::read(path)?;
-    let digest = Sha256::digest(&bytes);
-    let got = hex::encode(digest);
+    let got = file_sha256_hex(path)?;
     if got != expected {
         fs::remove_file(path).ok();
         return Err(DollytError::BinHashMismatch {
@@ -275,6 +423,61 @@ fn verify_file_sha256_value(path: &Path, expected: &str, tool: &str) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::SystemTime;
+
+    #[test]
+    fn installed_tool_requires_a_well_formed_manifest() {
+        let path =
+            std::env::temp_dir().join(format!("dollyt-bin-check-{}.exe", std::process::id()));
+        let sidecar = path.with_extension("sha256");
+        fs::write(&path, b"binary").unwrap();
+        fs::write(&sidecar, "a".repeat(64)).unwrap();
+        assert!(installed_tool_manifest_present(&path));
+        fs::write(&sidecar, "wrong").unwrap();
+        assert!(!installed_tool_manifest_present(&path));
+        fs::remove_file(path).unwrap();
+        fs::remove_file(sidecar).unwrap();
+    }
+
+    #[test]
+    fn installed_tool_manifest_prevents_rehashing_on_later_starts() {
+        let path = std::env::temp_dir().join(format!(
+            "dollyt-manifest-cache-{}-{}.exe",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let sidecar = path.with_extension("sha256");
+        fs::write(&path, b"verified binary").unwrap();
+        fs::write(&sidecar, "a".repeat(64)).unwrap();
+        fs::write(&path, b"changed after initial verification").unwrap();
+
+        assert!(installed_tool_manifest_present(&path));
+
+        fs::remove_file(path).unwrap();
+        fs::remove_file(sidecar).unwrap();
+    }
+
+    #[test]
+    fn ytdlp_install_marker_avoids_running_version_check_again() {
+        let path = std::env::temp_dir().join(format!(
+            "dollyt-ytdlp-marker-{}-{}.exe",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&path, b"verified binary").unwrap();
+        fs::write(ytdlp_marker_path(&path), "2026.10.26").unwrap();
+
+        assert!(ensure_ytdlp_install_marker(&path).unwrap());
+
+        fs::remove_file(&path).unwrap();
+        fs::remove_file(ytdlp_marker_path(&path)).unwrap();
+    }
 
     #[test]
     fn version_key_orders_release_dates() {

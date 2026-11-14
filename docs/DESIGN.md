@@ -15,7 +15,7 @@ Cible : Windows 10 1809+ et Windows 11, x64, WebView2. Au repos, le CPU reste qu
 ```
 src/                 interface TypeScript, Vite, React, Zustand, i18n FR/EN
 src-tauri/           Tauri 2, Rust stable
-  presets/           8 presets JSON embarqués
+  presets/           10 presets JSON embarqués
 docs/                ce fichier, INFRA.md, jalons, plans
 installer/           NSIS via Tauri bundler (pas d'Inno Setup)
 .github/workflows/   ci.yml et release.yml
@@ -31,7 +31,7 @@ Binaires yt-dlp, FFmpeg et Deno : absents du dépôt. Téléchargés au premier 
 
 Mise à jour de l'application : plugin officiel `@tauri-apps/plugin-updater` (Tauri 2). Releases GitHub publiques, `latest.json` signé minisign, installateur NSIS. Réglages : auto-update app, auto-update yt-dlp, vérification manuelle, version ignorée. En production.
 
-Presets : JSON embarqués en lecture seule (8 : TikTok, Reels, Shorts, YouTube, X, Source brute, Édition/Qualité locale, QUALITY MAX). Presets utilisateur : reporté. Champs : conteneur, codec vidéo (copie ou libx264 CRF), résolution/ratio, fps, débit max, audio AAC, gabarit de nom de fichier.
+Presets : 10 JSON embarqués en lecture seule, plus les presets JSON utilisateur lus dans `%LOCALAPPDATA%\Dollyt\presets`. Les IDs intégrés restent prioritaires en cas de collision. Champs : conteneur, codec vidéo (copie ou encodeur pris en charge), résolution/ratio, fps, débit max, audio et gabarit de nom de fichier.
 
 Presets intégrés : TikTok 9:16, Reels 9:16, Shorts 9:16, YouTube 16:9, X 9:16 — débits calés sur les limites publiées de chaque plateforme (vérifiés à l'écriture des JSON). Source brute (MKV copie), Qualité locale (MP4 CRF 14), QUALITY MAX (meilleur flux YouTube en copie MKV).
 

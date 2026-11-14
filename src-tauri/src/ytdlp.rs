@@ -13,6 +13,67 @@ use std::time::{Duration, Instant, SystemTime};
 
 pub type ProgressFn = Arc<dyn Fn(u8) + Send + Sync>;
 
+struct ProgressTicker {
+    stop: Arc<AtomicBool>,
+    stop_tx: std::sync::mpsc::SyncSender<()>,
+    worker: Option<thread::JoinHandle<()>>,
+}
+
+impl ProgressTicker {
+    fn spawn(stop: Arc<AtomicBool>, callback: Arc<dyn Fn() + Send + Sync>) -> Self {
+        let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel(1);
+        let worker = thread::spawn(move || {
+            loop {
+                match stop_rx.recv_timeout(Duration::from_millis(400)) {
+                    Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => callback(),
+                }
+            }
+        });
+        Self {
+            stop,
+            stop_tx,
+            worker: Some(worker),
+        }
+    }
+}
+
+impl Drop for ProgressTicker {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        let _ = self.stop_tx.try_send(());
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+struct TemporaryDownloadGuard {
+    path: PathBuf,
+    keep: bool,
+}
+
+impl TemporaryDownloadGuard {
+    fn new(path: PathBuf) -> Self {
+        Self { path, keep: false }
+    }
+
+    fn keep(&mut self) {
+        self.keep = true;
+    }
+}
+
+impl Drop for TemporaryDownloadGuard {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = std::fs::remove_file(&self.path);
+            let mut partial = self.path.as_os_str().to_os_string();
+            partial.push(".part");
+            let _ = std::fs::remove_file(PathBuf::from(partial));
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VideoInfo {
@@ -122,6 +183,11 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
 
 /** URL fraîche pour la balise video (les URL du JSON -J expirent vite). */
 pub fn resolve_muxed_stream_url(page_url: &str, format_id: &str) -> Result<String> {
+    if !format_id.is_empty() && !valid_format_selector(format_id) {
+        return Err(DollytError::YtdlpFailed(
+            "sélecteur de format invalide".into(),
+        ));
+    }
     let fmt = if format_id.is_empty() {
         "18/b".to_string()
     } else {
@@ -210,6 +276,7 @@ pub fn download_section_cancellable(
     let hi = end_secs + margin_secs;
     let section = format!("*{lo}-{hi}");
     let out = temp_mkv_path();
+    let mut output_guard = TemporaryDownloadGuard::new(out.clone());
     let out_arg = out.to_string_lossy().into_owned();
     let start = SystemTime::now();
     let mut args: Vec<&str> = vec!["-f", format_id, "-N", "4", "-o", out_arg.as_str()];
@@ -239,16 +306,12 @@ pub fn download_section_cancellable(
     // (FFmpegFD) il n'en émet pas, d'où la progression synthétique bornée
     // qui cède la place au vrai % dès qu'il arrive.
     let tick_stop = Arc::new(AtomicBool::new(false));
-    if let Some(cb) = on_progress.clone() {
+    let ticker = if let Some(cb) = on_progress.clone() {
         let started = start;
-        let stop = Arc::clone(&tick_stop);
         let pct_bg = Arc::clone(&pct);
-        thread::spawn(move || {
-            loop {
-                thread::sleep(Duration::from_millis(400));
-                if stop.load(Ordering::SeqCst) {
-                    break;
-                }
+        Some(ProgressTicker::spawn(
+            Arc::clone(&tick_stop),
+            Arc::new(move || {
                 let real = pct_bg.load(Ordering::Relaxed);
                 let raw = if real > 0 {
                     real
@@ -257,17 +320,20 @@ pub fn download_section_cancellable(
                     (100.0 * (1.0 - (-elapsed / 45.0).exp())).min(96.0) as u8
                 };
                 cb(raw);
-            }
-        });
-    }
+            }),
+        ))
+    } else {
+        None
+    };
     wait_child_slot(child_slot, cancel, &pct, stderr_tail, on_progress)?;
-    tick_stop.store(true, Ordering::SeqCst);
+    drop(ticker);
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
     if !out.exists() {
         return Err(DollytError::YtdlpFailed(
             "fichier MKV absent après téléchargement".into(),
         ));
     }
+    output_guard.keep();
     Ok(DownloadResult {
         path: out.to_string_lossy().into_owned(),
         elapsed_ms,
@@ -445,5 +511,31 @@ mod tests {
         assert!(!valid_format_selector("--exec"));
         assert!(!valid_format_selector("18\n--exec"));
         assert!(valid_format_selector("bestvideo+bestaudio"));
+    }
+
+    #[test]
+    fn preview_url_rejects_option_like_format_selectors_before_spawning() {
+        let error = resolve_muxed_stream_url("https://www.youtube.com/watch?v=abc", "--exec")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("sélecteur de format invalide"));
+    }
+
+    #[test]
+    fn dropping_progress_ticker_stops_its_worker() {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let ticker = ProgressTicker::spawn(Arc::clone(&stopped), Arc::new(|| {}));
+        drop(ticker);
+        assert!(stopped.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn temporary_download_guard_removes_partial_output() {
+        let path = std::env::temp_dir().join("dollyt-partial-download-test.mkv");
+        fs::write(&path, b"partial").unwrap();
+        {
+            let _guard = TemporaryDownloadGuard::new(path.clone());
+        }
+        assert!(!path.exists());
     }
 }

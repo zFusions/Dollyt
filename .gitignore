@@ -12,6 +12,7 @@ src-tauri/gen/
 # Scaffolds temporaires locaux (hors dépôt, si recréés à la racine parente)
 src/quarantine/
 INFRA-APPRENTISSAGE.html
+CODEX-HANDOFF.md
 .cursor/
 docs/plans/
 docs/superpowers/

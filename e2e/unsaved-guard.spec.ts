@@ -4,13 +4,14 @@ const AUTO_UPDATE = /^(Mise à jour automatique|Automatic updates)$/;
 const UNSAVED_TITLE = /Modifications non enregistrées|Unsaved changes/;
 const STAY = /^(Rester|Stay)$/;
 const DISCARD = /Annuler les modifications|Discard changes/;
+const SETTINGS = /^(Paramètres|Settings)$/;
 
 test("paramètres modifiés : la navigation demande enregistrer ou annuler", async ({
   page,
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Presets" }).first().click();
-  await page.getByRole("button", { name: "Paramètres" }).click();
+  await page.getByRole("button", { name: SETTINGS }).click();
   await expect(
     page.getByRole("switch", { name: AUTO_UPDATE }),
   ).toBeVisible();

@@ -18,8 +18,9 @@ import { CustomSelect } from "../components/ui/CustomSelect";
 import { normalizeYoutubeUrl, validateYoutubeUrl } from "../lib/validateUrl";
 import { useDollytStore } from "../store";
 import { backendText, t } from "../i18n";
+import { takeBufferedJobEvents } from "../lib/jobEventBuffer.mjs";
 
-export function HomeView() {
+export function HomeView({ toolsReady = true }: { toolsReady?: boolean }) {
   const url = useDollytStore((s) => s.url);
   const setUrl = useDollytStore((s) => s.setUrl);
   const setVideo = useDollytStore((s) => s.setVideo);
@@ -49,6 +50,7 @@ export function HomeView() {
 
   async function onDownload(e: FormEvent) {
     e.preventDefault();
+    if (!toolsReady) return;
     const invalid = validateYoutubeUrl(url);
     if (invalid) {
       setError(invalid);
@@ -129,6 +131,36 @@ export function HomeView() {
       });
       st.setActiveJob(jobId);
       st.beginDownload();
+      const earlyEvents = takeBufferedJobEvents(jobId);
+      if (earlyEvents?.progress) {
+        st.updateJob(jobId, {
+          stage: earlyEvents.progress.stage,
+          percent: earlyEvents.progress.percent,
+          state: "running",
+        });
+        st.setDownloadProgress(
+          earlyEvents.progress.stage,
+          earlyEvents.progress.percent,
+        );
+      }
+      if (earlyEvents?.finished) {
+        const { ok, message, outputPath, previewPath } = earlyEvents.finished;
+        st.finishJob(jobId, ok, message, previewPath ?? "", outputPath ?? "");
+        if (ok && outputPath) {
+          st.addHistory({
+            id: `${Date.now()}-${outputPath}`,
+            title: loaded.title || t("untitledVideo"),
+            url: target,
+            outputPath,
+            thumbnailUrl: loaded.thumbnailUrl || "",
+            kind: exportFullVideo ? "full" : "clip",
+            startSecs: start,
+            endSecs: end,
+            createdAt: Date.now(),
+          });
+        }
+        st.finishDownload(ok, message, previewPath ?? "", outputPath ?? "");
+      }
     } catch (err) {
       const msg = String(err);
       setError(msg);
@@ -175,7 +207,7 @@ export function HomeView() {
             <button
               type="button"
               className="home-pill"
-              disabled={busy}
+              disabled={busy || !toolsReady}
               onClick={submitDownload}
             >
               {t("launch")}
@@ -243,7 +275,7 @@ export function HomeView() {
                       data-lpignore="true"
                     />
                   </div>
-                  <button type="submit" className="home-submit" disabled={busy}>
+                  <button type="submit" className="home-submit" disabled={busy || !toolsReady}>
                     <img
                       className="home-submit-icon"
                       src="/icons/envoyer.png"
@@ -317,6 +349,7 @@ export function HomeView() {
             <span className="home-local">
               {t("savedLocally")}
             </span>
+            {!toolsReady ? <span role="status"> · {t("toolsPreparingHint")}</span> : null}
           </p>
 
           {error || status ? (

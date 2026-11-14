@@ -16,6 +16,23 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
+      - run: node --test scripts/*.test.mjs
+      - run: npm audit --audit-level=high
       - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: npx playwright install chromium
+      - run: npm run test:e2e
+
+  audit-rust:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
