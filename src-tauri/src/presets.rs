@@ -141,7 +141,7 @@ fn validate_preset(p: &Preset) -> Result<()> {
     {
         return Err(bad("videoMaxBitrateKbps"));
     }
-    if p.name_template.len() > 200 {
+    if p.name_template.encode_utf16().count() > 200 {
         return Err(bad("nameTemplate"));
     }
     Ok(())
@@ -229,6 +229,16 @@ mod tests {
     fn rejects_out_of_range_encoding_values() {
         let mut preset = get_builtin("source").unwrap();
         preset.crf = Some(52);
+        assert!(validate_preset(&preset).is_err());
+    }
+
+    #[test]
+    fn name_template_limit_counts_utf16_units() {
+        let mut preset = get_builtin("source").unwrap();
+        preset.name_template = "é".repeat(101);
+        assert!(validate_preset(&preset).is_ok());
+
+        preset.name_template = "é".repeat(201);
         assert!(validate_preset(&preset).is_err());
     }
 }

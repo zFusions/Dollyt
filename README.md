@@ -51,7 +51,7 @@
 ## Quick start
 
 1. Download the [latest Windows installer](https://github.com/zFusions/Dollyt/releases/latest) and run it (WebView2 Runtime required).
-2. On first launch, Dollyt downloads yt-dlp, FFmpeg, ffprobe and Deno from official GitHub releases in the background. Initial pinned downloads are SHA-256 checked. Later launches use local install markers instead of hashing or running version checks again. Export is enabled when setup finishes; if setup fails, retry it in the app.
+2. On first launch, Dollyt downloads yt-dlp, FFmpeg, ffprobe and Deno from official GitHub releases in the background. Initial pinned downloads are SHA-256 checked. The preparation screen is only needed while tools are being installed or recovered. Later launches use local install markers instead of hashing or running version checks again. Export is enabled when setup finishes; if setup fails, retry it in the app.
 3. Paste a YouTube URL, pick a preset, export.
 
 ## Requirements

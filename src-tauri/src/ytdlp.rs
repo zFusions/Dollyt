@@ -14,13 +14,12 @@ use std::time::{Duration, Instant, SystemTime};
 pub type ProgressFn = Arc<dyn Fn(u8) + Send + Sync>;
 
 struct ProgressTicker {
-    stop: Arc<AtomicBool>,
     stop_tx: std::sync::mpsc::SyncSender<()>,
     worker: Option<thread::JoinHandle<()>>,
 }
 
 impl ProgressTicker {
-    fn spawn(stop: Arc<AtomicBool>, callback: Arc<dyn Fn() + Send + Sync>) -> Self {
+    fn spawn(callback: Arc<dyn Fn() + Send + Sync>) -> Self {
         let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel(1);
         let worker = thread::spawn(move || {
             loop {
@@ -31,7 +30,6 @@ impl ProgressTicker {
             }
         });
         Self {
-            stop,
             stop_tx,
             worker: Some(worker),
         }
@@ -40,7 +38,6 @@ impl ProgressTicker {
 
 impl Drop for ProgressTicker {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::SeqCst);
         let _ = self.stop_tx.try_send(());
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -305,23 +302,19 @@ pub fn download_section_cancellable(
     // Sans sections, yt-dlp émet un vrai % via stderr ; avec sections
     // (FFmpegFD) il n'en émet pas, d'où la progression synthétique bornée
     // qui cède la place au vrai % dès qu'il arrive.
-    let tick_stop = Arc::new(AtomicBool::new(false));
     let ticker = if let Some(cb) = on_progress.clone() {
         let started = start;
         let pct_bg = Arc::clone(&pct);
-        Some(ProgressTicker::spawn(
-            Arc::clone(&tick_stop),
-            Arc::new(move || {
-                let real = pct_bg.load(Ordering::Relaxed);
-                let raw = if real > 0 {
-                    real
-                } else {
-                    let elapsed = started.elapsed().unwrap_or_default().as_secs_f64();
-                    (100.0 * (1.0 - (-elapsed / 45.0).exp())).min(96.0) as u8
-                };
-                cb(raw);
-            }),
-        ))
+        Some(ProgressTicker::spawn(Arc::new(move || {
+            let real = pct_bg.load(Ordering::Relaxed);
+            let raw = if real > 0 {
+                real
+            } else {
+                let elapsed = started.elapsed().unwrap_or_default().as_secs_f64();
+                (100.0 * (1.0 - (-elapsed / 45.0).exp())).min(96.0) as u8
+            };
+            cb(raw);
+        })))
     } else {
         None
     };
@@ -523,10 +516,19 @@ mod tests {
 
     #[test]
     fn dropping_progress_ticker_stops_its_worker() {
-        let stopped = Arc::new(AtomicBool::new(false));
-        let ticker = ProgressTicker::spawn(Arc::clone(&stopped), Arc::new(|| {}));
+        let (callback_tx, callback_rx) = std::sync::mpsc::sync_channel(1);
+        let ticker = ProgressTicker::spawn(Arc::new(move || {
+            let _ = callback_tx.try_send(());
+        }));
+        callback_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("ticker should invoke its callback");
         drop(ticker);
-        assert!(stopped.load(Ordering::SeqCst));
+        assert!(
+            callback_rx
+                .recv_timeout(Duration::from_millis(500))
+                .is_err()
+        );
     }
 
     #[test]
