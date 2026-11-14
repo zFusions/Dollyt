@@ -16,7 +16,7 @@ import { presetShortLabel } from "../lib/presetsUi";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { normalizeYoutubeUrl, validateYoutubeUrl } from "../lib/validateUrl";
 import { useDollytStore } from "../store";
-import { t } from "../i18n";
+import { backendText, t } from "../i18n";
 
 export function HomeView() {
   const url = useDollytStore((s) => s.url);
@@ -305,7 +305,7 @@ export function HomeView() {
               data-tone={error ? "err" : undefined}
               role={error ? "alert" : "status"}
             >
-              {error || status}
+              {error ? backendText(error) : status ? backendText(status) : null}
             </p>
           ) : null}
         </section>
