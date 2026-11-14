@@ -4,6 +4,8 @@ import { PrimaryButton } from "./PrimaryButton";
 import { Panel, SettingRow } from "./ui/Panel";
 import { CustomSelect } from "./ui/CustomSelect";
 import { Toggle } from "./Toggle";
+import { presetDisplayName } from "../lib/presetsUi";
+import { t } from "../i18n";
 
 type Props = {
   formatLabel: string;
@@ -36,25 +38,25 @@ export function ExportPanel({
       <p className="editor-format-meta meta mono">{formatLabel}</p>
       <Panel>
         <div className="set-group">
-          <SettingRow label="Preset">
+          <SettingRow label={t("presetLabel")}>
             <CustomSelect
               value={selectedPresetId}
               onChange={onPresetChange}
               className="mono"
               options={presets.map((p) => ({
                 value: p.id,
-                label: p.name,
+                label: presetDisplayName(p),
                 iconId: p.id,
               }))}
-              ariaLabel="Preset d'export"
+              ariaLabel={t("exportPresetAria")}
             />
           </SettingRow>
           <Toggle
             checked={exportFullVideo}
             onChange={onExportFullVideoChange}
-            label="Vidéo entière"
+            label={t("fullVideo")}
             description={
-              exportFullVideo ? "Toute la durée" : "Seulement la zone marquée"
+              exportFullVideo ? t("fullVideoDesc") : t("clipDesc")
             }
           />
           <div className="set-row flex flex-col gap-2">
@@ -63,14 +65,14 @@ export function ExportPanel({
               className="btn-sm btn-block"
               onClick={onExport}
             >
-              {exportFullVideo ? "Exporter tout" : "Exporter le clip"}
+              {exportFullVideo ? t("exportAll") : t("exportClip")}
             </PrimaryButton>
             <PrimaryButton
               variant="ghost"
               className="btn-sm btn-block"
               onClick={onCancel}
             >
-              Annuler
+              {t("cancel")}
             </PrimaryButton>
             <ExportProgress percent={jobPercent} label={status} />
           </div>

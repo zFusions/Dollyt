@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { PrimaryButton } from "./PrimaryButton";
 
 type Props = {
@@ -15,7 +16,7 @@ export function NoticeDialog({ open, title, message, onClose }: Props) {
       <button
         type="button"
         className="set-dev-gate-backdrop"
-        aria-label="Fermer"
+        aria-label={t("close")}
         onClick={onClose}
       />
       <div

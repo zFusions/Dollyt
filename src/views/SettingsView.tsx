@@ -113,7 +113,7 @@ export function SettingsView() {
       await saveSettings(draft);
       setSaved({ ...draft });
       setSelectedPresetId(draft.defaultPresetId);
-      setMsg("Enregistré");
+      setMsg(t("savedMsg"));
     } catch (e) {
       setMsg(String(e));
     } finally {
@@ -129,12 +129,12 @@ export function SettingsView() {
       if (result?.alreadyLatest) {
         setNotice({
           title: "yt-dlp",
-          message: "yt-dlp est déjà la version vérifiée par Dollyt.",
+          message: t("ytdlpLatest"),
         });
       } else {
         setNotice({
           title: "yt-dlp",
-          message: "yt-dlp a été revérifié et est à jour sur ton disque.",
+          message: t("ytdlpRechecked"),
         });
       }
     } catch (e) {
@@ -244,11 +244,11 @@ export function SettingsView() {
                 spellCheck={false}
               />
             </SettingRow>
-            <SettingRow label="Encodage matériel" hint="Passe par la carte NVIDIA si elle est là">
+            <SettingRow label={t("hwEncode")} hint={t("hwEncodeHint")}>
               <Switch
                 checked={draft.hardwareEncode}
                 onChange={(v) => setDraft({ ...draft, hardwareEncode: v })}
-                label="Encodage matériel"
+                label={t("hwEncode")}
               />
             </SettingRow>
           </div>
@@ -256,14 +256,14 @@ export function SettingsView() {
       </section>
 
       <section className="set-section">
-        <h2 className="set-heading">Moteur</h2>
+        <h2 className="set-heading">{t("engine")}</h2>
         <Panel>
           <div className="set-group">
             <SettingRow
               label="yt-dlp"
-              hint="Binaire officiel vérifié par SHA-256 avant utilisation"
+              hint={t("ytdlpSecureHint")}
             >
-              <span className="meta">Sécurisé</span>
+              <span className="meta">{t("secured")}</span>
             </SettingRow>
           </div>
         </Panel>
@@ -287,7 +287,7 @@ export function SettingsView() {
             </SettingRow>
             <SettingRow
               label={t("checkUpdate")}
-              hint="Vérifie manuellement s'il existe une nouvelle version sur GitHub."
+              hint={t("checkUpdateManualHint")}
             >
               <PrimaryButton
                 variant="default"
@@ -304,7 +304,7 @@ export function SettingsView() {
             </SettingRow>
             <SettingRow
               label={t("autoUpdateYtdlp")}
-              hint="Désactivée par défaut. Quand elle est activée, Dollyt vérifie la version épinglée au démarrage."
+              hint={t("autoUpdateYtdlpHint")}
             >
               <Switch
                 checked={draft.autoUpdateYtdlp}
@@ -315,7 +315,7 @@ export function SettingsView() {
               />
             </SettingRow>
             <SettingRow
-              label="Version de yt-dlp"
+              label={t("ytdlpVersion")}
               hint={t("ytdlpSourceHint")}
             >
               <PrimaryButton
@@ -332,7 +332,7 @@ export function SettingsView() {
       </section>
 
       <section className="set-section">
-        <h2 className="set-heading">Développeur</h2>
+        <h2 className="set-heading">{t("developer")}</h2>
         <p className="meta mb-2 px-0.5">
           Réserve ça si tu touches à FFmpeg toi-même. Laisse vide pour garder le
           preset choisi dans Presets.
@@ -340,13 +340,13 @@ export function SettingsView() {
         <Panel>
           <div className="set-group">
             <SettingRow
-              label="Mode développeur"
-              hint="CRF, Mbps, fps et preset x264 personnalisés"
+              label={t("devMode")}
+              hint={t("devModeHint")}
             >
               <Switch
                 checked={draft.developerMode}
                 onChange={onDeveloperMode}
-                label="Mode développeur"
+                label={t("devMode")}
               />
             </SettingRow>
             {draft.developerMode ? (
@@ -378,7 +378,7 @@ export function SettingsView() {
                 </SettingRow>
                 <SettingRow
                   label={t("videoCap")}
-                  hint="Plafond réseau du preset si tu laisses vide"
+                  hint={t("networkCapHint")}
                 >
                   <input
                     type="number"
@@ -403,7 +403,7 @@ export function SettingsView() {
                     placeholder="10"
                   />
                 </SettingRow>
-                <SettingRow label="Images par seconde" hint="Vide = preset.">
+                <SettingRow label={t("fpsLabel")} hint={t("fpsHint")}>
                   <input
                     type="number"
                     min={1}
@@ -423,8 +423,8 @@ export function SettingsView() {
                   />
                 </SettingRow>
                 <SettingRow
-                  label="Audio (kbps)"
-                  hint="Reels : souvent 128 kbps max. Vide = preset."
+                  label={t("audioKbps")}
+                  hint={t("audioHint")}
                 >
                   <input
                     type="number"
@@ -445,8 +445,8 @@ export function SettingsView() {
                   />
                 </SettingRow>
                 <SettingRow
-                  label="Preset x264"
-                  hint="slow demande plus de temps, souvent un peu plus net"
+                  label={t("x264Preset")}
+                  hint={t("x264Hint")}
                 >
                   <CustomSelect
                     value={draft.devX264Preset || ""}
@@ -457,12 +457,12 @@ export function SettingsView() {
                       })
                     }
                     options={[
-                      { value: "", label: "fast (défaut)" },
+                      { value: "", label: t("x264Default") },
                       { value: "medium", label: "medium" },
                       { value: "slow", label: "slow" },
                       { value: "veryslow", label: "veryslow" },
                     ]}
-                    ariaLabel="Preset x264"
+                    ariaLabel={t("x264Preset")}
                   />
                 </SettingRow>
               </>

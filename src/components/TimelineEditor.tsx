@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { t } from "../i18n";
 import { getTimelineFilmstrip } from "../api/dollyt";
 import { masterThumbsForView } from "../lib/filmstripMaster";
 import { previewSrc } from "../lib/previewSrc";
@@ -334,7 +335,7 @@ export function TimelineEditor({
     playhead >= viewStart - 0.05 && playhead <= viewEnd + 0.05;
 
   return (
-    <section className="timeline-deck" aria-label="Montage">
+    <section className="timeline-deck" aria-label={t("montageAria")}>
       <TimelineTransport
         playing={playing}
         onTogglePlay={onTogglePlay}
@@ -349,7 +350,7 @@ export function TimelineEditor({
           aria-valuemin={viewStart}
           aria-valuemax={viewEnd}
           aria-valuenow={playhead}
-          aria-label={clipSelection ? "Timeline du clip" : "Timeline"}
+          aria-label={clipSelection ? t("timelineClip") : t("timeline")}
           onPointerDown={onTrackPointerDown}
         >
           <Ruler viewStart={viewStart} viewSpan={viewSpan} />
@@ -392,7 +393,7 @@ export function TimelineEditor({
                 data-playhead="1"
                 role="button"
                 tabIndex={0}
-                aria-label="Tête de lecture"
+                aria-label={t("playheadAria")}
                 onPointerDown={onPlayheadCapDown}
               />
               <div className="timeline-playhead-line" />
@@ -484,14 +485,14 @@ function ClipTrimmer({
         className="timeline-clip"
         style={{ left: `${left}%`, width: `${width}%` }}
         role="group"
-        aria-label="Sélection du clip"
+        aria-label={t("clipSelectAria")}
       >
         <section className="timeline-clip-window" aria-hidden />
         <button
           type="button"
           data-handle="in"
           className={`timeline-clip-handle timeline-clip-handle--in${drag === "in" ? " timeline-clip-handle--active" : ""}`}
-          aria-label="Entrée du clip"
+          aria-label={t("clipInAria")}
           onPointerDown={(e) => {
             e.stopPropagation();
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -502,7 +503,7 @@ function ClipTrimmer({
           type="button"
           data-handle="out"
           className={`timeline-clip-handle timeline-clip-handle--out${drag === "out" ? " timeline-clip-handle--active" : ""}`}
-          aria-label="Sortie du clip"
+          aria-label={t("clipOutAria")}
           onPointerDown={(e) => {
             e.stopPropagation();
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -531,7 +532,7 @@ function TimelineTransport({
         type="button"
         className="timeline-transport"
         onClick={onTogglePlay}
-        aria-label={playing ? "Pause" : "Lecture"}
+        aria-label={playing ? t("pause") : t("play")}
       >
         {playing ? (
           <span className="timeline-icon-pause" />
