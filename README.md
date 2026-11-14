@@ -21,16 +21,26 @@ Dollyt is a desktop YouTube clip exporter for Windows. Paste a URL, choose a pre
 ## Features
 
 - **Local preview** — See the video in-app before exporting.
-- **Precise selection** — Timeline with start/end time controls.
-- **Presets** — TikTok, Reels, Shorts, YouTube, X formats.
-- **FFmpeg encoding** — Optional hardware encoding (NVENC).
-- **History** — Re-export from your past exports.
+- **Presets** — TikTok, Reels, Shorts, YouTube, X, raw source, local quality, max quality, MP3 and lossless FLAC audio.
+- **Export queue** — Stack multiple exports; they run one at a time in the background.
+- **FFmpeg encoding** — Optional hardware encoding (NVIDIA NVENC or AMD AMF).
+- **History** — Re-export from your past exports, with a live export queue.
 - **Privacy** — All processing is local; no Dollyt telemetry.
 - **Bilingual** — French and English interface.
 
+## Demo
+
+![Dollyt demo](docs/assets/demo.gif)
+
 ## Screenshots
 
-*(Captures à venir — la démo et les screenshots seront ajoutés prochainement.)*
+| Home | Presets |
+| --- | --- |
+| ![Home](docs/assets/home-preview.png) | ![Presets](docs/assets/presets-preview.png) |
+
+| Settings | History |
+| --- | --- |
+| ![Settings](docs/assets/settings-preview.png) | ![History](docs/assets/queue-preview.png) |
 
 ## Usage
 
