@@ -29,6 +29,7 @@ pub fn cut_exact_section(
     mkv_path: &str,
     trim_start_secs: f64,
     trim_end_secs: f64,
+    section_lo_secs: f64,
 ) -> Result<CutResult> {
     let preset = Preset {
         id: "edition".into(),
@@ -51,8 +52,10 @@ pub fn cut_exact_section(
         mkv_path,
         trim_start_secs,
         trim_end_secs,
+        section_lo_secs,
         &preset,
         &out,
+        false,
         false,
         "fast",
     )
@@ -63,18 +66,22 @@ pub fn export_section(
     input_path: &str,
     trim_start_secs: f64,
     trim_end_secs: f64,
+    section_lo_secs: f64,
     preset: &Preset,
     out_path: &Path,
     hardware_encode: bool,
+    hw_speed: bool,
     x264_preset: &str,
 ) -> Result<CutResult> {
     export_section_impl(
         input_path,
         trim_start_secs,
         trim_end_secs,
+        section_lo_secs,
         preset,
         out_path,
         hardware_encode,
+        hw_speed,
         x264_preset,
         None,
         None,
@@ -86,9 +93,11 @@ fn export_section_impl(
     input_path: &str,
     trim_start_secs: f64,
     trim_end_secs: f64,
+    section_lo_secs: f64,
     preset: &Preset,
     out_path: &Path,
     hardware_encode: bool,
+    hw_speed: bool,
     x264_preset: &str,
     cancel_ctx: Option<(&AtomicBool, &Arc<Mutex<Option<Child>>>)>,
     on_encode: Option<EncodeProgressFn>,
@@ -103,7 +112,7 @@ fn export_section_impl(
         fs::create_dir_all(parent)?;
     }
     let file_start = probe_start_secs(input_path)?;
-    let relative_start = (trim_start_secs - file_start).max(0.0);
+    let relative_start = (trim_start_secs - section_lo_secs + file_start).max(0.0);
     let duration = (trim_end_secs - trim_start_secs).max(0.0);
     if duration <= 0.0 {
         return Err(DollytError::FfmpegFailed(
@@ -132,37 +141,54 @@ fn export_section_impl(
     let fps = preset.fps.map(|f| f.to_string());
 
     let mut args: Vec<&str> = vec!["-y", "-ss", &ss, "-i", input_path, "-t", &dur];
-    args.extend(["-map", "0:v:0", "-map", "0:a:0?"]);
-    if let Some(filter) = vf.as_deref() {
-        args.extend(["-vf", filter]);
-    }
-    if stream_copy {
-        args.extend(["-c", "copy"]);
-    } else {
-        args.extend(["-c:v", vcodec.as_str()]);
-        if vcodec == "libx264" || vcodec == "h264_nvenc" {
-            if let Some(crf) = &crf {
-                args.extend([
-                    if vcodec == "h264_nvenc" {
-                        "-cq"
-                    } else {
-                        "-crf"
-                    },
-                    crf.as_str(),
-                ]);
-            }
-            args.extend(["-preset", x264_preset]);
-            if let (Some(m), Some(b)) = (maxrate.as_deref(), bufsize.as_deref()) {
-                args.extend(["-maxrate", m, "-bufsize", b]);
-            }
-        }
-        if let Some(fps) = &fps {
-            args.push("-r");
-            args.push(fps.as_str());
-        }
+    if preset.video_codec == "none" {
+        args.extend(["-vn", "-map", "0:a:0"]);
         args.extend(["-c:a", preset.audio_codec.as_str()]);
         if !ab.is_empty() {
             args.extend(["-b:a", ab.as_str()]);
+        }
+    } else {
+        args.extend(["-map", "0:v:0", "-map", "0:a:0?"]);
+        if let Some(filter) = vf.as_deref() {
+            args.extend(["-vf", filter]);
+        }
+        if stream_copy {
+            args.extend(["-c", "copy"]);
+        } else {
+            args.extend(["-c:v", vcodec.as_str()]);
+            let is_amf = vcodec == "h264_amf";
+            if vcodec == "libx264" || vcodec == "h264_nvenc" || is_amf {
+                if let Some(crf) = &crf {
+                    match vcodec.as_str() {
+                        "h264_nvenc" => args.extend(["-cq", crf.as_str()]),
+                        "h264_amf" => args.extend(["-rc", "cqp", "-qp_i", crf.as_str()]),
+                        _ => args.extend(["-crf", crf.as_str()]),
+                    }
+                }
+                if is_amf {
+                    args.extend(["-quality", if hw_speed { "speed" } else { "quality" }]);
+                } else {
+                    // nvenc n'accepte que des presets p1-p7 : les noms x264
+                    // (fast, slow…) feraient échouer l'export.
+                    let preset_arg = if vcodec == "h264_nvenc" {
+                        if hw_speed { "p2" } else { "p5" }
+                    } else {
+                        x264_preset
+                    };
+                    args.extend(["-preset", preset_arg]);
+                    if let (Some(m), Some(b)) = (maxrate.as_deref(), bufsize.as_deref()) {
+                        args.extend(["-maxrate", m, "-bufsize", b]);
+                    }
+                }
+            }
+            if let Some(fps) = &fps {
+                args.push("-r");
+                args.push(fps.as_str());
+            }
+            args.extend(["-c:a", preset.audio_codec.as_str()]);
+            if !ab.is_empty() {
+                args.extend(["-b:a", ab.as_str()]);
+            }
         }
     }
     let out_str = out_path.to_str().expect("chemin UTF-8");
@@ -192,6 +218,7 @@ pub fn export_to_settings_path_cancellable(
     title: &str,
     trim_start_secs: f64,
     trim_end_secs: f64,
+    section_lo_secs: f64,
     preset: &Preset,
     settings: &Settings,
     cancel: &AtomicBool,
@@ -203,6 +230,7 @@ pub fn export_to_settings_path_cancellable(
         title,
         trim_start_secs,
         trim_end_secs,
+        section_lo_secs,
         preset,
         settings,
         Some((cancel, child_slot)),
@@ -216,6 +244,7 @@ fn export_to_settings_path_impl(
     title: &str,
     trim_start_secs: f64,
     trim_end_secs: f64,
+    section_lo_secs: f64,
     preset: &Preset,
     settings: &Settings,
     cancel_ctx: Option<(&AtomicBool, &Arc<Mutex<Option<Child>>>)>,
@@ -235,9 +264,11 @@ fn export_to_settings_path_impl(
         input_path,
         trim_start_secs,
         trim_end_secs,
+        section_lo_secs,
         &effective,
         &out,
         settings.hardware_encode,
+        settings.hardware_encode && crate::settings::encode_prefers_speed(settings),
         x264_preset,
         cancel_ctx,
         on_encode,
@@ -247,17 +278,53 @@ fn export_to_settings_path_impl(
 fn nvenc_available() -> bool {
     static OK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *OK.get_or_init(|| {
-        process::run_ffmpeg(&["-hide_banner", "-encoders"])
-            .map(|o| {
-                o.status.success() && String::from_utf8_lossy(&o.stdout).contains("h264_nvenc")
-            })
-            .unwrap_or(false)
+        let driver_present = std::path::Path::new(r"C:\Windows\System32\nvcuda.dll").exists();
+        driver_present
+            && process::run_ffmpeg(&["-hide_banner", "-encoders"])
+                .map(|o| {
+                    o.status.success() && String::from_utf8_lossy(&o.stdout).contains("h264_nvenc")
+                })
+                .unwrap_or(false)
+    })
+}
+
+fn amf_available() -> bool {
+    static OK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OK.get_or_init(|| {
+        process::run_ffmpeg(&[
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=0.2:size=320x240:rate=30",
+            "-frames:v",
+            "30",
+            "-c:v",
+            "h264_amf",
+            "-rc",
+            "cqp",
+            "-qp_i",
+            "20",
+            "-f",
+            "null",
+            "NUL",
+        ])
+        .map(|o| o.status.success())
+        .unwrap_or(false)
     })
 }
 
 fn pick_video_encoder(preset: &Preset, hardware_encode: bool) -> String {
-    if hardware_encode && preset.video_codec == "libx264" && nvenc_available() {
-        "h264_nvenc".to_string()
+    if hardware_encode && preset.video_codec == "libx264" {
+        if nvenc_available() {
+            "h264_nvenc".to_string()
+        } else if amf_available() {
+            "h264_amf".to_string()
+        } else {
+            preset.video_codec.clone()
+        }
     } else {
         preset.video_codec.clone()
     }

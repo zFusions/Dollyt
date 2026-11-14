@@ -37,6 +37,11 @@ const BUILTIN: &[(&str, &str)] = &[
     ("youtube", include_str!("../presets/youtube.json")),
     ("x", include_str!("../presets/x.json")),
     ("quality-max", include_str!("../presets/quality-max.json")),
+    ("audio", include_str!("../presets/audio.json")),
+    (
+        "audio-lossless",
+        include_str!("../presets/audio-lossless.json"),
+    ),
 ];
 
 pub fn list_builtin() -> Result<Vec<Preset>> {
@@ -82,7 +87,7 @@ mod tests {
     #[test]
     fn builtin_presets_parse() {
         let all = list_builtin().expect("builtin");
-        assert_eq!(all.len(), 8);
+        assert_eq!(all.len(), 10);
         assert!(all.iter().any(|p| p.id == "edition"));
     }
 }

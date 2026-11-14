@@ -1,0 +1,16 @@
+{
+  "id": "audio-lossless",
+  "name": "Audio FLAC",
+  "container": "flac",
+  "videoCodec": "none",
+  "audioCodec": "flac",
+  "crf": null,
+  "width": null,
+  "height": null,
+  "fps": null,
+  "crop": "none",
+  "audioBitrateKbps": null,
+  "videoMaxBitrateKbps": null,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "FLAC sans perte : la qualité audio exacte de la source, sans vidéo."
+}

@@ -55,10 +55,17 @@ pub fn to_ytdlp_format(sel: &FormatSelection) -> String {
     }
 }
 
+fn is_avc1(format: &Value) -> bool {
+    let vcodec = format.get("vcodec").and_then(|v| v.as_str()).unwrap_or("");
+    vcodec.contains("avc1") || vcodec.contains("h264")
+}
+
 pub fn pick_download_formats(formats: &[Value]) -> Option<FormatSelection> {
+    // Sections + remux mp4 : l'avc1 se coupe fiable dans ffmpeg, pas le vp9/webm.
+    let has_avc1 = formats.iter().any(|f| is_video_https(f) && is_avc1(f));
     let video = formats
         .iter()
-        .filter(|f| is_video_https(f))
+        .filter(|f| is_video_https(f) && (!has_avc1 || is_avc1(f)))
         .max_by(|a, b| {
             let ra = a.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
             let rb = b.get("height").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -84,6 +91,12 @@ pub fn pick_download_formats(formats: &[Value]) -> Option<FormatSelection> {
         .and_then(|f| f.get("format_id"))
         .and_then(|v| v.as_str().map(String::from));
     Some(FormatSelection { video_id, audio_id })
+}
+
+pub fn pick_audio_format_id(formats: &[Value]) -> Option<String> {
+    best_audio_only(formats)
+        .and_then(|f| f.get("format_id"))
+        .and_then(|v| v.as_str().map(String::from))
 }
 
 fn best_audio_only(formats: &[Value]) -> Option<&Value> {
