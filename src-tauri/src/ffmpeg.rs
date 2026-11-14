@@ -280,11 +280,24 @@ fn nvenc_available() -> bool {
     *OK.get_or_init(|| {
         let driver_present = std::path::Path::new(r"C:\Windows\System32\nvcuda.dll").exists();
         driver_present
-            && process::run_ffmpeg(&["-hide_banner", "-encoders"])
-                .map(|o| {
-                    o.status.success() && String::from_utf8_lossy(&o.stdout).contains("h264_nvenc")
-                })
-                .unwrap_or(false)
+            && process::run_ffmpeg(&[
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=0.2:size=320x240:rate=30",
+                "-frames:v",
+                "30",
+                "-c:v",
+                "h264_nvenc",
+                "-f",
+                "null",
+                "NUL",
+            ])
+            .map(|o| o.status.success())
+            .unwrap_or(false)
     })
 }
 
@@ -529,6 +542,10 @@ fn read_ffmpeg_stderr(
             Ok(0) | Err(_) => break,
             Ok(n) => {
                 full.extend_from_slice(&chunk[..n]);
+                if full.len() > 256 * 1024 {
+                    let excess = full.len() - 256 * 1024;
+                    full.drain(..excess);
+                }
                 if let Some(cb) = &on_media_time {
                     let mut data = tail.clone();
                     data.extend_from_slice(&chunk[..n]);

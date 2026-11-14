@@ -190,17 +190,20 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
                 child: Arc::clone(&request.child),
             });
         }
-        let result = run_cut_job(
-            &app,
-            request.job_id,
-            &request.cancel,
-            &request.child,
-            &request.raw_url,
-            &request.format_id,
-            request.start_secs,
-            request.end_secs,
-            &request.preset_id,
-        );
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            run_cut_job(
+                &app,
+                request.job_id,
+                &request.cancel,
+                &request.child,
+                &request.raw_url,
+                &request.format_id,
+                request.start_secs,
+                request.end_secs,
+                &request.preset_id,
+            )
+        }))
+        .unwrap_or_else(|_| Err("erreur interne du moteur de traitement".into()));
         let (ok, message, output_path, preview_path) = match result {
             Ok((path, preview)) => (true, "Extrait exporté.".to_string(), Some(path), preview),
             Err(e) => (false, e, None, None),
@@ -222,6 +225,14 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
         {
             *active = None;
         }
+    }
+}
+
+struct TempFileGuard(std::path::PathBuf);
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
     }
 }
 
@@ -289,6 +300,7 @@ fn run_cut_job(
         Some(on_progress),
     )
     .map_err(|e| e.to_string())?;
+    let _section_guard = TempFileGuard(std::path::PathBuf::from(download.path.as_str()));
     if cancel.load(Ordering::SeqCst) {
         return Err("annulé".into());
     }
