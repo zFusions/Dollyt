@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cancelJob, revealFile } from "../api/dollyt";
 import { CopyButton } from "../components/CopyButton";
+import { formatTimeInput } from "../lib/time";
 import { backendText, t } from "../i18n";
 import { useDollytStore, type ExportJob, type HistoryEntry } from "../store";
 
@@ -118,6 +119,12 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
   const [confirming, setConfirming] = useState(false);
   const removeHistory = useDollytStore((s) => s.removeHistory);
   const audioExt = AUDIO_EXT.exec(entry.outputPath)?.[1]?.toUpperCase() ?? "";
+  const clipLabel =
+    entry.kind === "clip" && entry.startSecs != null && entry.endSecs != null
+      ? `${t("clipHistory")} ${formatTimeInput(entry.startSecs)} - ${formatTimeInput(entry.endSecs)}`
+      : entry.kind === "full"
+        ? t("fullVideoHistory")
+        : t("clipHistory");
 
   async function openLocation() {
     setError("");
@@ -180,11 +187,7 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
           {entry.url}
         </a>
         <p className="history-meta">
-          {audioExt
-            ? `${t("audioFile")} ${audioExt}`
-            : entry.kind === "full"
-              ? t("fullVideoHistory")
-              : t("clipHistory")}{" "}
+          {audioExt ? `${t("audioFile")} ${audioExt}` : clipLabel}{" "}
           · {new Date(entry.createdAt).toLocaleDateString()}
         </p>
         {error ? <p className="history-error">{backendText(error)}</p> : null}

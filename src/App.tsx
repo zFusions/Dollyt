@@ -153,6 +153,8 @@ function App() {
               outputPath,
               thumbnailUrl: job.thumbnailUrl || "",
               kind: job.kind,
+              startSecs: job.startSecs,
+              endSecs: job.endSecs,
               createdAt: Date.now(),
             });
           }
@@ -165,6 +167,8 @@ function App() {
             outputPath,
             thumbnailUrl: current.video?.thumbnailUrl || "",
             kind: current.exportFullVideo ? "full" : "clip",
+            startSecs: current.startSecs,
+            endSecs: current.endSecs,
             createdAt: Date.now(),
           });
         }

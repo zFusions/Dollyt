@@ -118,6 +118,8 @@ export function HomeView() {
         title: loaded.title || "",
         thumbnailUrl: loaded.thumbnailUrl || "",
         kind: exportFullVideo ? "full" : "clip",
+        startSecs: start,
+        endSecs: end,
         stage: "",
         percent: 0,
         state: isActive ? "running" : "queued",
