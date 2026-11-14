@@ -1,0 +1,16 @@
+{
+  "id": "audio",
+  "name": "Audio MP3",
+  "container": "mp3",
+  "videoCodec": "none",
+  "audioCodec": "libmp3lame",
+  "crf": null,
+  "width": null,
+  "height": null,
+  "fps": null,
+  "crop": "none",
+  "audioBitrateKbps": 320,
+  "videoMaxBitrateKbps": null,
+  "nameTemplate": "{titre}_{debut}-{fin}",
+  "description": "MP3 320 kbps, sans vidéo. Idéal pour la musique, podcasts et voix."
+}

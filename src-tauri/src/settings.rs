@@ -10,6 +10,8 @@ pub struct Settings {
     pub export_dir: String,
     pub name_template: String,
     pub hardware_encode: bool,
+    #[serde(default = "default_encode_quality")]
+    pub encode_quality: String,
     #[serde(default)]
     pub auto_update_ytdlp: bool,
     #[serde(default)]
@@ -40,12 +42,17 @@ fn default_export_preset_id() -> String {
     "tiktok".into()
 }
 
+fn default_encode_quality() -> String {
+    "quality".into()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             export_dir: String::new(),
             name_template: "{titre}_{debut}-{fin}".to_string(),
             hardware_encode: false,
+            encode_quality: default_encode_quality(),
             auto_update_ytdlp: false,
             ytdlp_cookies_browser: String::new(),
             ytdlp_cookies_file: String::new(),
@@ -96,6 +103,10 @@ pub fn apply_dev_overrides(preset: &mut Preset, settings: &Settings) {
     {
         preset.audio_bitrate_kbps = Some(ab);
     }
+}
+
+pub fn encode_prefers_speed(settings: &Settings) -> bool {
+    settings.encode_quality.trim().eq_ignore_ascii_case("speed")
 }
 
 pub fn dev_x264_preset(settings: &Settings) -> &'static str {

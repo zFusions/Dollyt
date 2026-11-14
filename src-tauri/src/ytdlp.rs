@@ -32,6 +32,7 @@ pub struct VideoInfo {
 pub struct DownloadResult {
     pub path: String,
     pub elapsed_ms: u64,
+    pub section_lo_secs: f64,
 }
 
 pub fn fetch_metadata_json(url: &str) -> Result<Value> {
@@ -234,7 +235,25 @@ pub fn download_section_cancellable(
     if let Ok(mut guard) = child_slot.lock() {
         *guard = Some(child);
     }
+    // FFmpegFD (sections) n'émet pas de % : progression synthétique bornée.
+    let tick_stop = Arc::new(AtomicBool::new(false));
+    if let Some(cb) = on_progress.clone() {
+        let started = start;
+        let stop = Arc::clone(&tick_stop);
+        thread::spawn(move || {
+            loop {
+                thread::sleep(Duration::from_millis(400));
+                if stop.load(Ordering::SeqCst) {
+                    break;
+                }
+                let elapsed = started.elapsed().unwrap_or_default().as_secs_f64();
+                let raw = (100.0 * (1.0 - (-elapsed / 45.0).exp())).min(96.0) as u8;
+                cb(raw);
+            }
+        });
+    }
     wait_child_slot(child_slot, cancel, &pct, stderr_tail, on_progress)?;
+    tick_stop.store(true, Ordering::SeqCst);
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
     if !out.exists() {
         return Err(DollytError::YtdlpFailed(
@@ -244,6 +263,7 @@ pub fn download_section_cancellable(
     Ok(DownloadResult {
         path: out.to_string_lossy().into_owned(),
         elapsed_ms,
+        section_lo_secs: lo,
     })
 }
 
@@ -394,7 +414,8 @@ mod tests {
             video_info_from_json(&fetch_metadata_json(url).expect("métadonnées")).expect("infos");
         assert_eq!(info.format_id, "18");
         let dl = download_section(url, &info.format_id, 5.0, 12.0, 3.0).expect("téléchargement");
-        let cut = crate::ffmpeg::cut_exact_section(&dl.path, 5.0, 12.0).expect("découpe");
+        let cut = crate::ffmpeg::cut_exact_section(&dl.path, 5.0, 12.0, dl.section_lo_secs)
+            .expect("découpe");
         assert!((cut.output_duration_secs - 7.0).abs() < 0.75);
         eprintln!(
             "download_ms={} cut_ms={} duration={}",

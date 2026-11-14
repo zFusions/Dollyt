@@ -8,6 +8,7 @@ use crate::storage;
 use crate::url;
 use crate::ytdlp;
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -25,6 +26,23 @@ pub struct JobProgress {
 pub struct JobsState {
     next_id: Mutex<u64>,
     active: Mutex<Option<ActiveJob>>,
+    queue: Mutex<Queue>,
+}
+
+struct Queue {
+    items: VecDeque<JobRequest>,
+    running: bool,
+}
+
+struct JobRequest {
+    job_id: u64,
+    raw_url: String,
+    format_id: String,
+    start_secs: f64,
+    end_secs: f64,
+    preset_id: String,
+    cancel: Arc<AtomicBool>,
+    child: Arc<Mutex<Option<Child>>>,
 }
 
 struct ActiveJob {
@@ -38,6 +56,10 @@ impl Default for JobsState {
         Self {
             next_id: Mutex::new(1),
             active: Mutex::new(None),
+            queue: Mutex::new(Queue {
+                items: VecDeque::new(),
+                running: false,
+            }),
         }
     }
 }
@@ -53,11 +75,43 @@ pub struct JobFinished {
 }
 
 #[tauri::command]
-pub fn cancel_job(state: State<'_, Arc<JobsState>>) -> Result<(), String> {
+pub fn cancel_job(
+    app: AppHandle,
+    state: State<'_, Arc<JobsState>>,
+    job_id: Option<u64>,
+) -> Result<(), String> {
+    let mut removed = false;
+    if let Some(id) = job_id {
+        let mut queue = state.queue.lock().map_err(|e| e.to_string())?;
+        if let Some(pos) = queue.items.iter().position(|j| j.job_id == id) {
+            queue.items.remove(pos);
+            removed = true;
+        }
+        drop(queue);
+        if removed {
+            let _ = app.emit(
+                "job-finished",
+                JobFinished {
+                    job_id: id,
+                    ok: false,
+                    message: "annulé".into(),
+                    output_path: None,
+                    preview_path: None,
+                },
+            );
+            log::log_line(&format!("job {id} retiré de la file"));
+            return Ok(());
+        }
+    }
     let mut guard = state.active.lock().map_err(|e| e.to_string())?;
     let Some(job) = guard.as_mut() else {
         return Ok(());
     };
+    if let Some(id) = job_id
+        && job.job_id != id
+    {
+        return Ok(());
+    }
     job.cancel.store(true, Ordering::SeqCst);
     if let Some(child) = job.child.lock().map_err(|e| e.to_string())?.take() {
         process::kill_process_tree(child.id());
@@ -84,51 +138,91 @@ pub fn start_cut_job(
     let cancel = Arc::new(AtomicBool::new(false));
     let child_slot = Arc::new(Mutex::new(None::<Child>));
     {
-        let mut active = state.active.lock().map_err(|e| e.to_string())?;
-        if active.is_some() {
-            return Err("Un job est déjà en cours".into());
-        }
-        *active = Some(ActiveJob {
+        let mut queue = state.queue.lock().map_err(|e| e.to_string())?;
+        queue.items.push_back(JobRequest {
             job_id,
-            cancel: Arc::clone(&cancel),
-            child: Arc::clone(&child_slot),
-        });
-    }
-    let app2 = app.clone();
-    let state2 = Arc::clone(&state);
-    thread::spawn(move || {
-        let result = run_cut_job(
-            &app2,
-            job_id,
-            &cancel,
-            &child_slot,
-            &raw_url,
-            &format_id,
+            raw_url,
+            format_id,
             start_secs,
             end_secs,
-            &preset_id,
+            preset_id,
+            cancel,
+            child: child_slot,
+        });
+        if !queue.running {
+            queue.running = true;
+            let app_worker = app.clone();
+            let state_worker = Arc::clone(&state);
+            thread::spawn(move || worker_loop(app_worker, state_worker));
+        }
+    }
+    Ok(job_id)
+}
+
+fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
+    loop {
+        let request = {
+            let mut queue = match state.queue.lock() {
+                Ok(q) => q,
+                Err(_) => return,
+            };
+            queue.items.pop_front()
+        };
+        let Some(request) = request else {
+            let mut queue = match state.queue.lock() {
+                Ok(q) => q,
+                Err(_) => return,
+            };
+            if queue.items.is_empty() {
+                queue.running = false;
+                return;
+            }
+            continue;
+        };
+        {
+            let mut active = match state.active.lock() {
+                Ok(a) => a,
+                Err(_) => return,
+            };
+            *active = Some(ActiveJob {
+                job_id: request.job_id,
+                cancel: Arc::clone(&request.cancel),
+                child: Arc::clone(&request.child),
+            });
+        }
+        let result = run_cut_job(
+            &app,
+            request.job_id,
+            &request.cancel,
+            &request.child,
+            &request.raw_url,
+            &request.format_id,
+            request.start_secs,
+            request.end_secs,
+            &request.preset_id,
         );
         let (ok, message, output_path, preview_path) = match result {
             Ok((path, preview)) => (true, "Extrait exporté.".to_string(), Some(path), preview),
             Err(e) => (false, e, None, None),
         };
-        let _ = app2.emit(
+        let _ = app.emit(
             "job-finished",
             JobFinished {
-                job_id,
+                job_id: request.job_id,
                 ok,
                 message,
                 output_path,
                 preview_path,
             },
         );
-        if let Ok(mut active) = state2.active.lock()
-            && active.as_ref().is_some_and(|job| job.job_id == job_id)
+        if let Ok(mut active) = state.active.lock()
+            && active
+                .as_ref()
+                .is_some_and(|job| job.job_id == request.job_id)
         {
             *active = None;
         }
-    });
-    Ok(job_id)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -166,15 +260,19 @@ fn run_cut_job(
         .and_then(|v| v.as_array())
         .map(|v| v.as_slice())
         .unwrap_or(&[]);
-    let dl_format = format::pick_download_formats(formats)
-        .map(|s| format::to_ytdlp_format(&s))
-        .unwrap_or_else(|| {
-            if preset_id == "quality-max" {
-                String::new()
-            } else {
-                format_id.to_string()
-            }
-        });
+    let dl_format = if preset.video_codec == "none" {
+        format::pick_audio_format_id(formats).unwrap_or_else(|| format_id.to_string())
+    } else {
+        format::pick_download_formats(formats)
+            .map(|s| format::to_ytdlp_format(&s))
+            .unwrap_or_else(|| {
+                if preset_id == "quality-max" {
+                    String::new()
+                } else {
+                    format_id.to_string()
+                }
+            })
+    };
     let app_dl = app.clone();
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
         let mapped = 20u8.saturating_add(((raw as u16).saturating_mul(48) / 100) as u8);
@@ -205,6 +303,7 @@ fn run_cut_job(
         &info.title,
         start_secs,
         end_secs,
+        download.section_lo_secs,
         &preset,
         &app_settings,
         cancel,
