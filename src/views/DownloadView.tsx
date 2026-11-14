@@ -4,7 +4,7 @@ import { WindowControls } from "../components/WindowChrome";
 import { revealFile } from "../api/dollyt";
 import { previewSrc } from "../lib/previewSrc";
 import { useDollytStore } from "../store";
-import { t } from "../i18n";
+import { backendText, t } from "../i18n";
 
 type ActionIconName = "refresh" | "scissors" | "folder";
 
@@ -137,7 +137,7 @@ export function DownloadView() {
                   {t("openFile")}
                 </button>
               </div>
-              {openError ? <p className="download-open-error">{openError}</p> : null}
+              {openError ? <p className="download-open-error">{backendText(openError)}</p> : null}
             </div>
             {videoUrl ? (
               <div className="download-preview">
@@ -157,7 +157,7 @@ export function DownloadView() {
         ) : (
           <section className="download-error">
             <h1>{t("exportFailed")}</h1>
-            <p className="download-sub">{message || t("retryHint")}</p>
+            <p className="download-sub">{message ? backendText(message) : t("retryHint")}</p>
             <div className="download-actions">
               <button type="button" className="btn btn-primary btn-sm" onClick={retry}>
                 <ActionIcon name="refresh" />

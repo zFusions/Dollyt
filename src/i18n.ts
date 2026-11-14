@@ -227,6 +227,29 @@ const messages = {
     pause: "Pause",
     play: "Lecture",
     devIntro: "Réserve ça si tu touches à FFmpeg toi-même. Laisse vide pour garder le preset choisi dans Presets.",
+    jobBusy: "Un job est déjà en cours",
+    cancelled: "Annulé",
+    clipExported: "Extrait exporté.",
+    clipTooLongDyn: "La vidéo fait {dur}s — l’extrait demandé (jusqu’à {end}s) dépasse cette durée.",
+    exportFileMissing: "Le fichier exporté est introuvable.",
+    exportDirRequired: "Le fichier doit se trouver dans le dossier d’export configuré.",
+    previewDownloadFailed: "Téléchargement preview impossible.",
+    videoPathRefused: "Chemin vidéo refusé.",
+    noPreviewFormat: "Aucun format muxé utilisable pour la preview",
+    noMetadata: "yt-dlp n’a pas renvoyé de métadonnées.",
+    privateVideo: "Vidéo privée ou inaccessible.",
+    noMuxedUrl: "Aucune URL de lecture muxée",
+    badFormatSelector: "Sélecteur de format invalide",
+    badDownloadRange: "Plage de téléchargement invalide",
+    mkvMissing: "Fichier MKV absent après téléchargement",
+    ytdlpGenericError: "yt-dlp s’est terminé avec une erreur",
+    cookiesLockedWin: "Chrome et Edge verrouillent leurs cookies sous Windows : yt-dlp ne peut pas les lire. Paramètres → Firefox, ou un fichier cookies.txt (extension « Get cookies.txt LOCALLY » sur youtube.com).",
+    cookiesUnreadable: "Cookies Chrome/Edge illisibles sous Windows. Utilise Firefox, ou un fichier cookies.txt, dans Paramètres.",
+    ytBlocked: "YouTube bloque l’accès sans session. Paramètres → Firefox (connecté à YouTube), ou colle le chemin d’un cookies.txt exporté depuis le navigateur, Enregistrer, puis relance le lien.",
+    ytdlpFailed: "yt-dlp a échoué :",
+    ffmpegFailed: "ffmpeg a échoué :",
+    binDownloadFailed: "Téléchargement de binaire :",
+    exportFileInaccessible: "Fichier exporté inaccessible :",
   },
   en: {
     homeTitle: "From YouTube URL to clip, without the hassle",
@@ -439,6 +462,29 @@ const messages = {
     pause: "Pause",
     play: "Play",
     devIntro: "Save this for if you tweak FFmpeg yourself. Leave empty to keep the preset chosen in Presets.",
+    jobBusy: "A job is already running",
+    cancelled: "Cancelled",
+    clipExported: "Clip exported.",
+    clipTooLongDyn: "The video is {dur}s — the requested clip (up to {end}s) exceeds this duration.",
+    exportFileMissing: "The exported file is missing.",
+    exportDirRequired: "The file must be inside the configured export folder.",
+    previewDownloadFailed: "Preview download failed.",
+    videoPathRefused: "Video path refused.",
+    noPreviewFormat: "No usable muxed format for preview",
+    noMetadata: "yt-dlp returned no metadata.",
+    privateVideo: "Private or inaccessible video.",
+    noMuxedUrl: "No muxed playback URL",
+    badFormatSelector: "Invalid format selector",
+    badDownloadRange: "Invalid download range",
+    mkvMissing: "MKV file missing after download",
+    ytdlpGenericError: "yt-dlp exited with an error",
+    cookiesLockedWin: "Chrome and Edge lock their cookies on Windows: yt-dlp cannot read them. Settings → Firefox, or a cookies.txt file (\"Get cookies.txt LOCALLY\" extension on youtube.com).",
+    cookiesUnreadable: "Chrome/Edge cookies unreadable on Windows. Use Firefox, or a cookies.txt file, in Settings.",
+    ytBlocked: "YouTube is blocking access without a session. Settings → Firefox (logged into YouTube), or paste the path of a cookies.txt exported from your browser, Save, then retry the link.",
+    ytdlpFailed: "yt-dlp failed:",
+    ffmpegFailed: "ffmpeg failed:",
+    binDownloadFailed: "Binary download:",
+    exportFileInaccessible: "Exported file inaccessible:",
   },
 } as const;
 
@@ -450,6 +496,75 @@ export function t(key: MessageKey): string {
 
 export function currentLocale(): Locale {
   return locale;
+}
+
+type BackendRule =
+  | { match: string; key: MessageKey }
+  | { prefix: string; key: MessageKey }
+  | { pattern: RegExp; render: (m: RegExpMatchArray) => string };
+
+const BACKEND_RULES: BackendRule[] = [
+  { match: "Un job est déjà en cours", key: "jobBusy" },
+  { match: "Choisis d’abord un dossier de sortie dans Paramètres.", key: "chooseOutput" },
+  { match: "annulé", key: "cancelled" },
+  { match: "job annulé", key: "cancelled" },
+  { match: "opération annulée", key: "cancelled" },
+  { match: "Extrait exporté.", key: "clipExported" },
+  { match: "Le fichier exporté est introuvable.", key: "exportFileMissing" },
+  {
+    match: "Le fichier doit se trouver dans le dossier d’export configuré.",
+    key: "exportDirRequired",
+  },
+  { match: "Téléchargement preview impossible.", key: "previewDownloadFailed" },
+  { match: "Chemin vidéo refusé.", key: "videoPathRefused" },
+  {
+    match: "aucun format muxé utilisable pour la preview",
+    key: "noPreviewFormat",
+  },
+  { match: "yt-dlp n'a pas renvoyé de métadonnées.", key: "noMetadata" },
+  { match: "Vidéo privée ou inaccessible.", key: "privateVideo" },
+  { match: "aucune URL de lecture muxée", key: "noMuxedUrl" },
+  { match: "sélecteur de format invalide", key: "badFormatSelector" },
+  { match: "plage de téléchargement invalide", key: "badDownloadRange" },
+  { match: "fichier MKV absent après téléchargement", key: "mkvMissing" },
+  { match: "yt-dlp s'est terminé avec une erreur", key: "ytdlpGenericError" },
+  {
+    match: "Chrome et Edge verrouillent leurs cookies sous Windows : yt-dlp ne peut pas les lire. Paramètres → Firefox, ou un fichier cookies.txt (extension « Get cookies.txt LOCALLY » sur youtube.com).",
+    key: "cookiesLockedWin",
+  },
+  {
+    match: "Cookies Chrome/Edge illisibles sous Windows. Utilise Firefox, ou un fichier cookies.txt, dans Paramètres.",
+    key: "cookiesUnreadable",
+  },
+  {
+    match: "YouTube bloque l’accès sans session. Paramètres → Firefox (connecté à YouTube), ou colle le chemin d’un cookies.txt exporté depuis le navigateur, Enregistrer, puis relance le lien.",
+    key: "ytBlocked",
+  },
+  { prefix: "yt-dlp a échoué : ", key: "ytdlpFailed" },
+  { prefix: "ffmpeg a échoué : ", key: "ffmpegFailed" },
+  { prefix: "téléchargement de binaire : ", key: "binDownloadFailed" },
+  { prefix: "Fichier exporté inaccessible : ", key: "exportFileInaccessible" },
+  {
+    pattern: /^La vidéo fait ([\d.]+)s — l'extrait demandé \(jusqu'à ([\d.]+)s\) dépasse cette durée\.$/,
+    render: (m) =>
+      t("clipTooLongDyn")
+        .replace("{dur}", m[1])
+        .replace("{end}", m[2]),
+  },
+];
+
+export function backendText(raw: string): string {
+  for (const rule of BACKEND_RULES) {
+    if ("match" in rule && raw === rule.match) return t(rule.key);
+    if ("prefix" in rule && raw.startsWith(rule.prefix)) {
+      return `${t(rule.key)} ${raw.slice(rule.prefix.length)}`;
+    }
+    if ("pattern" in rule) {
+      const m = raw.match(rule.pattern);
+      if (m) return rule.render(m);
+    }
+  }
+  return raw;
 }
 
 export function setLocale(next: Locale): void {
