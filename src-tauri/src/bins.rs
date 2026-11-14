@@ -480,6 +480,28 @@ mod tests {
     }
 
     #[test]
+    fn ytdlp_install_marker_records_the_verified_version() {
+        let path = std::env::temp_dir().join(format!(
+            "dollyt-ytdlp-marker-write-{}-{}.exe",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&path, b"verified binary").unwrap();
+
+        write_ytdlp_install_marker(&path, "2026.10.26").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(ytdlp_marker_path(&path)).unwrap(),
+            "2026.10.26"
+        );
+        fs::remove_file(&path).unwrap();
+        fs::remove_file(ytdlp_marker_path(&path)).unwrap();
+    }
+
+    #[test]
     fn version_key_orders_release_dates() {
         assert!(version_key("2026.11.01") > version_key("2026.10.26"));
         assert_eq!(version_key("2026.10.26"), version_key("2026.10.26"));

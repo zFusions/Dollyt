@@ -1,3 +1,28 @@
+## Dollyt 1.2.0
+
+### Added
+
+- Tool setup runs outside the synchronous Tauri startup path. The app can open while local tools are prepared and enables export when setup completes.
+- Local install markers let later launches reuse verified tools without repeating archive hashes or yt-dlp version probes.
+- yt-dlp can be updated from the latest official GitHub release. The downloaded executable is checked against its reported release version before it replaces the installed binary.
+
+### Improved
+
+- Export progress events that arrive before the interface registers a job are buffered and replayed.
+- Full video downloads report yt-dlp progress. Progress remains associated with its own export.
+- Hardware encoding checks the available encoder and falls back to software encoding when it cannot be used.
+- The content security policy restricts scripts to the application source and limits local asset access to the temporary cache.
+
+### Fixed
+
+- The export worker recovers from internal errors so the queue can continue processing jobs.
+- Cancelling an export updates its state immediately and marks the job as cancelled.
+- Temporary download files are cleaned up after failure or cancellation.
+- User presets receive stricter encoding validation and resolve correctly for export jobs.
+- Export filenames avoid reserved Windows names and stay inside the selected output folder.
+
+Windows x64 installer. See [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details.
+
 ## Dollyt 1.1.1
 
 ### Fixed
