@@ -82,7 +82,7 @@ export function EditorOpeningView() {
   return (
     <section className="page editor-page editor-opening">
       <p className="editor-opening-title">{t("preparingVideoTitle")}</p>
-      <p className="meta">{fail || status || "On récupère les infos YouTube…"}</p>
+      <p className="meta">{fail || status || t("ytInfoLoading")}</p>
       <div
         className="load-track"
         role="progressbar"
@@ -94,7 +94,7 @@ export function EditorOpeningView() {
       </div>
       <p className="mono load-pct">{Math.round(shown)} %</p>
       <SnakeWait />
-      <p className="meta">Flèches, glisser ou clic pour jouer. L&apos;éditeur s&apos;ouvre au bout du chargement.</p>
+      <p className="meta">{t("snakeHintLong")}</p>
       <button type="button" className="btn btn-ghost btn-sm" onClick={goHome} tabIndex={-1}>
         {t("cancel")}
       </button>

@@ -13,7 +13,7 @@ import { HomeView } from "./views/HomeView";
 import { PresetsView } from "./views/PresetsView";
 import { QueueView } from "./views/QueueView";
 import { SettingsView } from "./views/SettingsView";
-import { useLocale } from "./i18n";
+import { t, useLocale } from "./i18n";
 import { DownloadView } from "./views/DownloadView";
 import { useAppUpdater } from "./hooks/useAppUpdater";
 import { getLeaveGuard } from "./lib/leaveGuard";
@@ -121,7 +121,7 @@ function App() {
           if (event.payload.ok && event.payload.outputPath) {
             addHistory({
               id: `${Date.now()}-${event.payload.outputPath}`,
-              title: current.video?.title || "Vidéo sans titre",
+              title: current.video?.title || t("untitledVideo"),
               url: current.url,
               outputPath: event.payload.outputPath,
               thumbnailUrl: current.video?.thumbnailUrl || "",

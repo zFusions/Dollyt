@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -13,7 +14,7 @@ export function WindowControls({ className = "" }: { className?: string }) {
       <button
         type="button"
         className="win-chrome-btn"
-        aria-label="Réduire"
+        aria-label={t("minimize")}
         onClick={() => void appWindow.minimize()}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
@@ -23,7 +24,7 @@ export function WindowControls({ className = "" }: { className?: string }) {
       <button
         type="button"
         className="win-chrome-btn"
-        aria-label="Agrandir ou restaurer"
+        aria-label={t("maximize")}
         onClick={() => void appWindow.toggleMaximize()}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
@@ -41,7 +42,7 @@ export function WindowControls({ className = "" }: { className?: string }) {
       <button
         type="button"
         className="win-chrome-btn win-chrome-btn-close"
-        aria-label="Fermer"
+        aria-label={t("close")}
         onClick={() => void appWindow.close()}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>

@@ -9,8 +9,18 @@ export const SOCIAL_PRESET_IDS = new Set([
   "youtube",
 ]);
 
+const PRESET_NAMES: Record<string, string> = {
+  edition: t("presetNameEdition"),
+  source: t("presetNameSource"),
+  "quality-max": t("presetNameQualityMax"),
+};
+
+export function presetDisplayName(p: Preset): string {
+  return PRESET_NAMES[p.id] ?? p.name;
+}
+
 export function presetShortLabel(p: Preset): string {
-  return p.name;
+  return presetDisplayName(p);
 }
 
 export type PresetBrief = { lead: string; points: string[] };

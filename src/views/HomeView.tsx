@@ -59,7 +59,7 @@ export function HomeView() {
       return;
     }
     if (!exportFullVideo && endSecs <= startSecs) {
-      setError("La fin doit être après le début.");
+      setError(t("endAfterStart"));
       return;
     }
     setError("");
@@ -157,7 +157,7 @@ export function HomeView() {
             </button>
           </div>
         </div>
-        <nav className="home-nav-mid" aria-label="Navigation">
+        <nav className="home-nav-mid" aria-label={t("navigation")}>
           <button type="button" onClick={() => go("presets")}>
             {t("presets")}
           </button>
@@ -211,7 +211,7 @@ export function HomeView() {
                       autoComplete="off"
                       autoFocus
                       disabled={busy}
-                      aria-label="Lien YouTube"
+                      aria-label={t("youtubeLinkAria")}
                       aria-invalid={error ? true : undefined}
                       aria-describedby={error ? "url-field-err" : undefined}
                       data-1p-ignore
@@ -241,7 +241,7 @@ export function HomeView() {
                       value={selectedPresetId}
                       disabled={busy || presets.length === 0}
                       onChange={setSelectedPresetId}
-                      ariaLabel="Preset d'export"
+                      ariaLabel={t("exportPresetAria")}
                       options={presets.map((p) => ({
                         value: p.id,
                         label: presetShortLabel(p),

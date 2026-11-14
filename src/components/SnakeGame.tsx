@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { t } from "../i18n";
 
 type Props = {
   width: number;
@@ -28,7 +29,7 @@ export function SnakeGame({
   cols = 28,
   rows = 10,
   className,
-  ariaLabel = "Mini-jeu Snake",
+  ariaLabel = t("snakeAria"),
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -218,13 +219,13 @@ export function SnakeGame({
       ctx.textAlign = "center";
       if (dead) {
         ctx.fillStyle = FOOD;
-        ctx.fillText("ESPACE OU CLIC POUR REJOUER", width / 2, height - 12);
+        ctx.fillText(t("snakeReplay"), width / 2, height - 12);
       } else if (won) {
         ctx.fillStyle = FOOD;
-        ctx.fillText("BRAVO, ESPACE POUR REJOUER", width / 2, height - 12);
+        ctx.fillText(t("snakeWon"), width / 2, height - 12);
       } else if (!started) {
         ctx.fillStyle = TEXT;
-        ctx.fillText("FLÈCHES POUR COMMENCER", width / 2, height - 12);
+        ctx.fillText(t("snakeStart"), width / 2, height - 12);
       }
       ctx.textAlign = "left";
     }
