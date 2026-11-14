@@ -334,8 +334,7 @@ export function SettingsView() {
       <section className="set-section">
         <h2 className="set-heading">{t("developer")}</h2>
         <p className="meta mb-2 px-0.5">
-          Réserve ça si tu touches à FFmpeg toi-même. Laisse vide pour garder le
-          preset choisi dans Presets.
+          {t("devIntro")}
         </p>
         <Panel>
           <div className="set-group">

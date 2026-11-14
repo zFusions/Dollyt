@@ -226,6 +226,7 @@ const messages = {
     timeline: "Timeline",
     pause: "Pause",
     play: "Lecture",
+    devIntro: "Réserve ça si tu touches à FFmpeg toi-même. Laisse vide pour garder le preset choisi dans Presets.",
   },
   en: {
     homeTitle: "From YouTube URL to clip, without the hassle",
@@ -437,6 +438,7 @@ const messages = {
     timeline: "Timeline",
     pause: "Pause",
     play: "Play",
+    devIntro: "Save this for if you tweak FFmpeg yourself. Leave empty to keep the preset chosen in Presets.",
   },
 } as const;
 

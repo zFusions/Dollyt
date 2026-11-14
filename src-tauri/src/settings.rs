@@ -44,7 +44,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             export_dir: String::new(),
-            name_template: "{titre}_depuis-{debut}s_jusqu-a-{fin}s".to_string(),
+            name_template: "{titre}_{debut}-{fin}".to_string(),
             hardware_encode: false,
             auto_update_ytdlp: false,
             ytdlp_cookies_browser: String::new(),
