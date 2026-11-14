@@ -159,6 +159,13 @@ const messages = {
     preparing: "Préparation…",
     preparingStream: "Préparation du flux…",
     streamUnavailable: "Flux indisponible — retente dans un instant ou nouveau lien.",
+    home: "Accueil",
+    editor: "Éditeur",
+    history: "Historique",
+    editorShort: "Montage",
+    settingsShort: "Réglages",
+    youtubeClips: "Clips YouTube",
+    navigation: "Navigation",
   },
   en: {
     homeTitle: "From YouTube URL to clip, without the hassle",
@@ -303,6 +310,13 @@ const messages = {
     preparing: "Preparing…",
     preparingStream: "Preparing stream…",
     streamUnavailable: "Stream unavailable — retry in a moment or new link.",
+    home: "Home",
+    editor: "Editor",
+    history: "History",
+    editorShort: "Edit",
+    settingsShort: "Settings",
+    youtubeClips: "YouTube clips",
+    navigation: "Navigation",
   },
 } as const;
 
