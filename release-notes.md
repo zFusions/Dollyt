@@ -1,22 +1,19 @@
-## Dollyt 1.1.0
-
-### New
-
-- **Export queue**: a dedicated page shows running, queued, and finished exports with stage and percentage. One job at a time; others wait their turn.
-- **Audio export**: two new presets, MP3 and FLAC (lossy / lossless), with a built-in audio player to preview the result.
-- **Hardware encoding**: settings option to use the GPU (NVIDIA / AMD) instead of the CPU, with a **Quality** or **Speed** mode and a clear explanation of both.
-- **Copy button on errors**: long yt-dlp error messages can now be copied directly.
-- **Smoother progress**: the bar advances throughout the download instead of jumping from 5% to 70%.
-- **YouTube thumbnails** in video export history.
-- **Snake high score** now persists between sessions.
+## Dollyt 1.1.1
 
 ### Fixed
 
-- **Wrong clip duration**: a calculation error could produce a clip much shorter than the selected range. Cuts now match the chosen range exactly.
-- **Video exports failing** on some formats (VP9/1440p): downloads now prefer a reliable codec.
-- **GPU encoding never used on AMD**: GPU detection fixed, exports are significantly faster.
-- **Silent export failures**: errors now remain visible in the queue with full details.
-- **Progress resetting to 0%** when leaving the screen mid-export.
-- **Dropdown animation** on selectors is now more visible.
+- **Export queue could freeze permanently**: a rare internal error could stop the processing worker and leave exports stuck with cancel unresponsive. The queue now recovers automatically.
+- **Cancel appeared to do nothing**: cancelling the active export now updates the interface immediately, and aborted jobs are correctly marked as cancelled instead of failed.
+- **Progress bar stalled during full video downloads**: full video exports now report real download progress instead of a synthetic estimate that stopped near two thirds.
+- **Download screen reused another export's percent**: launching a new export while one was running no longer displays the previous job's progress.
+- **Clip time fields kept old values**: the new link actions now reset the time range and the full video option.
+- **Temporary files cleanup**: downloaded sections are removed after each export, including on failure and cancellation.
+- **Preset validation**: user presets with unsupported codec or container values are rejected before reaching the encoder.
+
+### Improved
+
+- **Hardware detection**: NVIDIA encoding capability is now verified with a real encoding test and falls back to CPU when the driver fails.
+- **History detail**: export history shows the selected time range for each clip.
+- **Default clip length** is now 5 seconds.
 
 Windows x64 installer. See [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details.
