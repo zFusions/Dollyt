@@ -164,6 +164,7 @@ pub fn load() -> Result<Settings> {
     }
     let raw = fs::read_to_string(path)?;
     let mut settings: Settings = serde_json::from_str(&raw)?;
+    validate_settings(&settings)?;
     if settings.export_dir == default_export_dir() {
         settings.export_dir.clear();
         save(&settings)?;
@@ -173,6 +174,7 @@ pub fn load() -> Result<Settings> {
 }
 
 pub fn save(settings: &Settings) -> Result<()> {
+    validate_settings(settings)?;
     let dir = dollyt_data_dir();
     fs::create_dir_all(&dir)?;
     let json = serde_json::to_string_pretty(settings)?;
@@ -184,11 +186,79 @@ pub fn save(settings: &Settings) -> Result<()> {
         file.write_all(json.as_bytes())?;
         file.sync_all()?;
     }
-    if path.exists() {
-        fs::remove_file(&path)?;
-    }
-    fs::rename(tmp, path)?;
+    crate::atomic_file::replace_file(&tmp, &path)?;
     Ok(())
+}
+
+fn validate_settings(settings: &Settings) -> Result<()> {
+    let invalid = |_field: &str| crate::error::DollytError::InvalidSettings;
+    if settings.name_template.encode_utf16().count() > 200 {
+        return Err(invalid("nameTemplate"));
+    }
+    if settings.default_preset_id.is_empty()
+        || settings.default_preset_id.len() > 64
+        || !settings
+            .default_preset_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err(invalid("defaultPresetId"));
+    }
+    if !matches!(settings.encode_quality.as_str(), "quality" | "speed") {
+        return Err(invalid("encodeQuality"));
+    }
+    if settings.dev_crf.is_some_and(|crf| crf > 51) {
+        return Err(invalid("devCrf"));
+    }
+    if settings
+        .dev_video_max_bitrate_kbps
+        .is_some_and(|rate| !(1..=500_000).contains(&rate))
+    {
+        return Err(invalid("devVideoMaxBitrateKbps"));
+    }
+    if settings
+        .dev_fps
+        .is_some_and(|fps| !(1..=240).contains(&fps))
+    {
+        return Err(invalid("devFps"));
+    }
+    if settings
+        .dev_audio_bitrate_kbps
+        .is_some_and(|rate| !(8..=1536).contains(&rate))
+    {
+        return Err(invalid("devAudioBitrateKbps"));
+    }
+    if !settings.dev_x264_preset.is_empty()
+        && !X264_PRESETS.contains(&settings.dev_x264_preset.as_str())
+    {
+        return Err(invalid("devX264Preset"));
+    }
+    if !settings.ytdlp_cookies_browser.is_empty()
+        && !settings
+            .ytdlp_cookies_browser
+            .eq_ignore_ascii_case("firefox")
+    {
+        return Err(invalid("ytdlpCookiesBrowser"));
+    }
+    if settings
+        .ignored_update_version
+        .as_deref()
+        .is_some_and(|version| version.len() > 64)
+    {
+        return Err(invalid("ignoredUpdateVersion"));
+    }
+    Ok(())
+}
+
+const DEFAULT_NAME_TEMPLATE: &str = "{titre}_{debut}-{fin}";
+
+pub fn export_name_template<'a>(preset_template: &'a str, settings: &'a Settings) -> &'a str {
+    let configured = settings.name_template.trim();
+    if configured.is_empty() || configured == DEFAULT_NAME_TEMPLATE {
+        preset_template
+    } else {
+        configured
+    }
 }
 
 pub fn resolve_export_path(
@@ -298,6 +368,45 @@ fn sanitize_output_stem(stem: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_name_template_overrides_preset_template() {
+        let settings = Settings {
+            name_template: "custom_{titre}".into(),
+            ..Settings::default()
+        };
+        assert_eq!(
+            export_name_template("preset_{titre}", &settings),
+            "custom_{titre}"
+        );
+    }
+
+    #[test]
+    fn default_name_template_keeps_preset_specific_template() {
+        let settings = Settings::default();
+        assert_eq!(
+            export_name_template("{titre}_max", &settings),
+            "{titre}_max"
+        );
+    }
+
+    #[test]
+    fn rejects_out_of_range_developer_settings() {
+        let settings = Settings {
+            dev_fps: Some(1_000),
+            ..Settings::default()
+        };
+        assert!(validate_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn name_template_limit_counts_utf16_units_like_the_ui() {
+        let settings = Settings {
+            name_template: "é".repeat(101),
+            ..Settings::default()
+        };
+        assert!(validate_settings(&settings).is_ok());
+    }
 
     #[test]
     fn export_path_keeps_template_inside_export_directory() {

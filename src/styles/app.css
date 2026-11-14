@@ -65,3 +65,31 @@
     transition: opacity 180ms var(--ease-out) !important;
   }
 }
+.tools-init-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: #0a0a0a;
+  color: #f5f5f5;
+}
+
+.tools-init-card {
+  width: min(100%, 480px);
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.tools-init-card h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.tools-init-card p {
+  margin: 0;
+  color: #aaa;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

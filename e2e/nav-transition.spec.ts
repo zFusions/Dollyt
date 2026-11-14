@@ -55,10 +55,10 @@ test("accueil → presets : fondu + pas de rail pendant le départ", async ({ pa
 test("navigation rapide : conserve la dernière page demandée", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Presets" }).first().click();
-  await expect(page.getByRole("button", { name: "Paramètres" })).toBeVisible();
-  await page.getByRole("button", { name: "Paramètres" }).click();
+  await expect(page.getByRole("button", { name: /Paramètres|Settings/ })).toBeVisible();
+  await page.getByRole("button", { name: /Paramètres|Settings/ }).click();
   await page.getByRole("button", { name: /Historique|History/ }).click();
-  await page.getByRole("button", { name: "Accueil" }).click();
+  await page.getByRole("button", { name: /Accueil|Home/ }).click();
 
   await expect(page.locator("#home-title")).toBeVisible({ timeout: 3000 });
   await expect(page.locator(".view-stage")).toHaveClass(/view-stage--idle/);

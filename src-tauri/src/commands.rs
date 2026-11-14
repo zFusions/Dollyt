@@ -31,6 +31,33 @@ fn cancel_running_preview() {
     }
 }
 
+#[tauri::command]
+pub async fn initialize_tools() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| -> Result<(), String> {
+        bins::ensure_tools().map_err(|error| error.to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+
+    match settings::load() {
+        Ok(config) if config.auto_update_ytdlp => {
+            tauri::async_runtime::spawn_blocking(|| {
+                if let Err(error) = bins::update_ytdlp_manual() {
+                    log::log_line(&format!("mise à jour automatique yt-dlp échouée: {error}"));
+                }
+            });
+        }
+        Ok(_) => {}
+        Err(error) => {
+            log::log_line(&format!(
+                "impossible de lire le réglage de mise à jour yt-dlp: {error}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadVideoResponse {
@@ -267,9 +294,7 @@ pub fn save_settings_cmd(settings: Settings) -> Result<(), String> {
 
 #[tauri::command]
 pub fn list_presets() -> Result<Vec<Preset>, String> {
-    let mut all = presets::list_builtin().map_err(|e| e.to_string())?;
-    all.extend(presets::list_user().map_err(|e| e.to_string())?);
-    Ok(all)
+    presets::list_all().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -279,8 +304,11 @@ pub fn pick_export_directory() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn update_ytdlp() -> Result<bins::YtdlpUpdateResult, String> {
-    let result = bins::update_ytdlp_manual().map_err(|e| e.to_string())?;
+pub async fn update_ytdlp() -> Result<bins::YtdlpUpdateResult, String> {
+    let result = tauri::async_runtime::spawn_blocking(bins::update_ytdlp_manual)
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())?;
     if result.already_latest {
         log::log_line("yt-dlp déjà à jour");
     } else {

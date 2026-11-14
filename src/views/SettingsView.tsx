@@ -238,6 +238,7 @@ export function SettingsView() {
             >
               <input
                 value={draft.nameTemplate}
+                maxLength={200}
                 onChange={(e) =>
                   setDraft({ ...draft, nameTemplate: e.target.value })
                 }

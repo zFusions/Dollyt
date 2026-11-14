@@ -139,6 +139,12 @@ fn export_section_impl(
         .map(|k| format!("{k}k"))
         .unwrap_or_default();
     let fps = preset.fps.map(|f| f.to_string());
+    let amf_rate_args = encoder_rate_control_args(
+        &vcodec,
+        crf.as_deref(),
+        maxrate.as_deref(),
+        bufsize.as_deref(),
+    );
 
     let mut args: Vec<&str> = vec!["-y", "-ss", &ss, "-i", input_path, "-t", &dur];
     if preset.video_codec == "none" {
@@ -158,25 +164,17 @@ fn export_section_impl(
             args.extend(["-c:v", vcodec.as_str()]);
             let is_amf = vcodec == "h264_amf";
             if vcodec == "libx264" || vcodec == "h264_nvenc" || is_amf {
-                if let Some(crf) = &crf {
-                    match vcodec.as_str() {
-                        "h264_nvenc" => args.extend(["-cq", crf.as_str()]),
-                        "h264_amf" => args.extend([
-                            "-rc",
-                            "cqp",
-                            "-qp_i",
-                            crf.as_str(),
-                            "-qp_p",
-                            crf.as_str(),
-                            "-qp_b",
-                            crf.as_str(),
-                        ]),
-                        _ => args.extend(["-crf", crf.as_str()]),
-                    }
-                }
                 if is_amf {
+                    args.extend(amf_rate_args.iter().map(String::as_str));
                     args.extend(["-quality", if hw_speed { "speed" } else { "quality" }]);
                 } else {
+                    if let Some(crf) = &crf {
+                        if vcodec == "h264_nvenc" {
+                            args.extend(["-cq", crf.as_str()]);
+                        } else {
+                            args.extend(["-crf", crf.as_str()]);
+                        }
+                    }
                     // nvenc n'accepte que des presets p1-p7 : les noms x264
                     // (fast, slow…) feraient échouer l'export.
                     let preset_arg = if vcodec == "h264_nvenc" {
@@ -268,7 +266,7 @@ fn export_to_settings_path_impl(
     crate::settings::apply_dev_overrides(&mut effective, settings);
     let x264_preset = crate::settings::dev_x264_preset(settings);
     let out = crate::settings::resolve_export_path(
-        &effective.name_template,
+        crate::settings::export_name_template(&effective.name_template, settings),
         title,
         trim_start_secs,
         trim_end_secs,
@@ -354,6 +352,42 @@ fn pick_video_encoder(preset: &Preset, hardware_encode: bool) -> String {
         }
     } else {
         preset.video_codec.clone()
+    }
+}
+
+fn encoder_rate_control_args(
+    encoder: &str,
+    crf: Option<&str>,
+    maxrate: Option<&str>,
+    bufsize: Option<&str>,
+) -> Vec<String> {
+    if encoder != "h264_amf" {
+        return Vec::new();
+    }
+    if let (Some(maxrate), Some(bufsize)) = (maxrate, bufsize) {
+        vec![
+            "-rc".into(),
+            "vbr_peak".into(),
+            "-b:v".into(),
+            maxrate.into(),
+            "-maxrate".into(),
+            maxrate.into(),
+            "-bufsize".into(),
+            bufsize.into(),
+        ]
+    } else if let Some(qp) = crf {
+        vec![
+            "-rc".into(),
+            "cqp".into(),
+            "-qp_i".into(),
+            qp.into(),
+            "-qp_p".into(),
+            qp.into(),
+            "-qp_b".into(),
+            qp.into(),
+        ]
+    } else {
+        Vec::new()
     }
 }
 
@@ -608,4 +642,18 @@ fn ensure_success(output: &std::process::Output) -> Result<()> {
     }
     let stderr = String::from_utf8_lossy(&output.stderr);
     Err(DollytError::FfmpegFailed(stderr.trim().to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn amf_rate_control_uses_peak_vbr_when_preset_has_a_cap() {
+        let args =
+            encoder_rate_control_args("h264_amf", Some("18"), Some("25000k"), Some("50000k"));
+        assert!(args.windows(2).any(|pair| pair == ["-rc", "vbr_peak"]));
+        assert!(args.windows(2).any(|pair| pair == ["-maxrate", "25000k"]));
+        assert!(args.windows(2).any(|pair| pair == ["-bufsize", "50000k"]));
+    }
 }

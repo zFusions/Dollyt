@@ -275,7 +275,7 @@ fn run_cut_job(
     if cancel.load(Ordering::SeqCst) {
         return Err("annulé".into());
     }
-    let preset = presets::get_builtin(preset_id).map_err(|e| e.to_string())?;
+    let preset = presets::get(preset_id).map_err(|e| e.to_string())?;
     let app_settings = settings::load().map_err(|e| e.to_string())?;
     if app_settings.export_dir.trim().is_empty() {
         return Err("Choisis d’abord un dossier de sortie dans Paramètres.".into());
@@ -298,13 +298,7 @@ fn run_cut_job(
     } else {
         format::pick_download_formats(formats)
             .map(|s| format::to_ytdlp_format(&s))
-            .unwrap_or_else(|| {
-                if preset_id == "quality-max" {
-                    String::new()
-                } else {
-                    format_id.to_string()
-                }
-            })
+            .unwrap_or_else(|| download_fallback_format(preset_id, format_id))
     };
     let app_dl = app.clone();
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
@@ -370,6 +364,14 @@ fn run_cut_job(
     Ok((cut.path, preview_path))
 }
 
+fn download_fallback_format(preset_id: &str, format_id: &str) -> String {
+    if preset_id == "quality-max" && format_id.is_empty() {
+        "bestvideo+bestaudio/best".into()
+    } else {
+        format_id.to_string()
+    }
+}
+
 fn emit(app: &AppHandle, job_id: u64, stage: &str, percent: u8) -> Result<(), String> {
     app.emit(
         "job-progress",
@@ -380,4 +382,22 @@ fn emit(app: &AppHandle, job_id: u64, stage: &str, percent: u8) -> Result<(), St
         },
     )
     .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quality_max_uses_a_valid_selector_when_no_explicit_format_is_available() {
+        assert_eq!(
+            download_fallback_format("quality-max", ""),
+            "bestvideo+bestaudio/best"
+        );
+    }
+
+    #[test]
+    fn other_presets_keep_their_existing_format_fallback() {
+        assert_eq!(download_fallback_format("source", "18"), "18");
+    }
 }
