@@ -217,6 +217,8 @@ const messages = {
     maximize: "Agrandir ou restaurer",
     presetLabel: "Preset",
     exportPresetAria: "Preset d’export",
+    cropCenterWarn:
+      "Recadrage centre en 9:16 : le contenu sur les côtés sera coupé. Le preset Source garde toute l’image.",
     fullVideoDesc: "Toute la durée",
     clipDesc: "Seulement la zone marquée",
     exportAll: "Exporter tout",
@@ -480,6 +482,8 @@ const messages = {
     maximize: "Maximize or restore",
     presetLabel: "Preset",
     exportPresetAria: "Export preset",
+    cropCenterWarn:
+      "Center crop to 9:16: content on the sides will be cut off. The Source preset keeps the full frame.",
     fullVideoDesc: "Full duration",
     clipDesc: "Only the marked range",
     exportAll: "Export all",

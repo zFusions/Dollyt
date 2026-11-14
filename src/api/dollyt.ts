@@ -11,6 +11,8 @@ export type VideoInfo = {
   exportFormatId: string;
   previewFps: number;
   previewFileDurationSecs?: number | null;
+  width?: number | null;
+  height?: number | null;
   /** Début de la fenêtre preview locale sur la timeline YouTube. */
   previewStartSecs?: number | null;
 };
