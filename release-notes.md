@@ -12,7 +12,7 @@
 
 ### Fixed
 
-- **Wrong clip duration**: a 1:05-2:12 selection could export as ~11 s. Cuts now match the chosen range exactly.
+- **Wrong clip duration**: a calculation error could produce a clip much shorter than the selected range. Cuts now match the chosen range exactly.
 - **Video exports failing** on some formats (VP9/1440p): downloads now prefer a reliable codec.
 - **GPU encoding never used on AMD**: GPU detection fixed, exports are significantly faster.
 - **Silent export failures**: errors now remain visible in the queue with full details.
