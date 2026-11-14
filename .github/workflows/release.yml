@@ -32,6 +32,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Read release notes
+        id: notes
+        shell: pwsh
+        run: |
+          if (Test-Path release-notes.md) {
+            $body = Get-Content release-notes.md -Raw
+          } else {
+            $body = "## Dollyt $env:GITHUB_REF_NAME`n`nWindows x64 installer.`n`nSee [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details."
+          }
+          "body<<RELEASE_NOTES_EOF" >> $env:GITHUB_OUTPUT
+          $body >> $env:GITHUB_OUTPUT
+          "RELEASE_NOTES_EOF" >> $env:GITHUB_OUTPUT
+
       - name: Verify source
         shell: pwsh
         run: |
@@ -50,16 +63,6 @@ jobs:
           uploadUpdaterSignatures: false
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseName: "Dollyt ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
-          releaseBody: |
-            ## Dollyt ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-
-            Windows x64 installers for the first public release.
-
-            ### Installation
-            - Install the setup.exe installer.
-            - WebView2 Runtime is required.
-            - On first launch, FFmpeg, ffprobe and Deno are downloaded from pinned official releases and verified automatically.
-
-            See [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details.
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
