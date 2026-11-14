@@ -83,9 +83,9 @@ export function HomeView() {
       const fps = loaded.previewFps ?? 30;
       const dur = loaded.durationSecs || 0;
       if (dur <= 0) {
-        setError("Durée de la vidéo inconnue (direct ou indisponible).");
+        setError(t("durationUnknown"));
         setBusy(false);
-        useDollytStore.getState().finishDownload(false, "Durée inconnue.");
+        useDollytStore.getState().finishDownload(false, t("durationUnknown"));
         return;
       }
       const start = exportFullVideo
@@ -95,9 +95,9 @@ export function HomeView() {
         ? snapToFrame(dur, fps)
         : snapToFrame(clampTime(endSecs, start + 1 / fps, dur), fps);
       if (!exportFullVideo && (startSecs >= dur || endSecs > dur)) {
-        setError(`La vidéo fait ${formatTimeInput(dur)} — l'extrait demandé dépasse cette durée.`);
+        setError(t("clipExceedsDuration").replace("{duration}", formatTimeInput(dur)));
         setBusy(false);
-        useDollytStore.getState().finishDownload(false, "Extrait hors limites.");
+        useDollytStore.getState().finishDownload(false, t("clipOutOfBounds"));
         return;
       }
       if (!exportFullVideo) setRangeSecs(start, end);
@@ -258,7 +258,7 @@ export function HomeView() {
                       <Switch
                         checked={exportFullVideo}
                         onChange={setExportFullVideo}
-                        label="Basculer entre extrait et vidéo entière"
+                        label={t("toggleFullClip")}
                       />
                     </div>
                   </div>

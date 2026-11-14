@@ -26,6 +26,7 @@ import { storyboardAtTime, type StoryboardMeta } from "../lib/storyboardStrip";
 import { clampTime, snapToFrame } from "../lib/time";
 import { seekToFrame } from "../lib/videoSeek";
 import { useDollytStore } from "../store";
+import { t } from "../i18n";
 
 export function EditorView() {
   const video = useDollytStore((s) => s.video);
@@ -369,7 +370,7 @@ export function EditorView() {
   async function onExport() {
     if (!video) return;
     setJobPercent(0);
-    setStatus("Préparation…");
+    setStatus(t("preparing"));
     const start = exportFullVideo ? 0 : snapToFrame(startSecs, fps);
     const end = exportFullVideo
       ? snapToFrame(duration, fps)
@@ -400,7 +401,7 @@ export function EditorView() {
       <header className="editor-topbar">
         <h1 className="page-title editor-title">{video.title}</h1>
         <button type="button" onClick={goHome} className="btn btn-ghost btn-sm shrink-0">
-          Nouveau lien
+          {t("newLink")}
         </button>
       </header>
       <div className="editor-body">
@@ -467,8 +468,8 @@ export function EditorView() {
               <div className="preview-frame panel flex flex-1 items-center justify-center">
                 <p className="meta">
                   {fetchingPreview
-                    ? "Préparation du flux…"
-                    : "Flux indisponible — retente dans un instant ou nouveau lien."}
+                    ? t("preparingStream")
+                    : t("streamUnavailable")}
                 </p>
               </div>
             )}
