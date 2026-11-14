@@ -1,24 +1,13 @@
-<p align="center">
-  <img src="docs/assets/banner.png" alt="Dollyt banner" width="100%">
-</p>
-
-<p align="center">
+<div align="center">
+  <img src="docs/assets/Banner.png" alt="Dollyt banner" width="100%">
   <img src="docs/assets/logo.png" alt="Dollyt logo" height="80">
-</p>
-
-<p align="center">
+  <br>
   <b>Everything. Exported.</b>
-</p>
-
-<p align="center">
+  <br><br>
   <a href="https://github.com/zFusions/Dollyt/releases"><img src="https://img.shields.io/github/v/release/zFusions/Dollyt" alt="Latest release"></a>
   <a href="https://github.com/zFusions/Dollyt/blob/master/LICENSE"><img src="https://img.shields.io/github/license/zFusions/Dollyt" alt="License"></a>
   <a href="https://github.com/zFusions/Dollyt/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/zFusions/Dollyt/ci.yml" alt="CI status"></a>
-</p>
-
-<p align="center">
-  <img src="docs/assets/demo.gif" alt="Dollyt demo">
-</p>
+</div>
 
 ## About
 
@@ -42,17 +31,7 @@ Dollyt is a desktop YouTube clip exporter for Windows. Paste a URL, choose a pre
 
 ## Screenshots
 
-<p align="center">
-  <img src="docs/assets/home.png" alt="Dollyt home" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/editor.png" alt="Dollyt editor" width="100%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/settings.png" alt="Dollyt settings" width="100%">
-</p>
+*(Captures à venir — la démo et les screenshots seront ajoutés prochainement.)*
 
 ## Usage
 
