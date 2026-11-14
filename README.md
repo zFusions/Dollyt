@@ -1,56 +1,87 @@
-<div align="center">
-  <img src="docs/assets/logo.png" alt="Dollyt logo" height="80">
-  <br>
-  <b>Everything. Exported.</b>
-  <br><br>
-  <a href="https://github.com/zFusions/Dollyt/releases"><img src="https://img.shields.io/github/v/release/zFusions/Dollyt" alt="Latest release"></a>
-  <a href="https://github.com/zFusions/Dollyt/blob/master/LICENSE"><img src="https://img.shields.io/github/license/zFusions/Dollyt" alt="License"></a>
-  <a href="https://github.com/zFusions/Dollyt/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/zFusions/Dollyt/ci.yml" alt="CI status"></a>
-</div>
+<p align="center">
+  <img src="docs/assets/Banner.png" alt="Dollyt" width="880">
+</p>
 
-## About
+<h1 align="center">Dollyt</h1>
 
-Dollyt is a desktop YouTube clip exporter for Windows. Paste a URL, choose a preset, select a range, and export — everything stays on your PC. No cloud upload, no Dollyt server, no telemetry.
+<p align="center">
+  <em>Paste a link. Pick a format. It's on your disk before the ad break ends.</em>
+</p>
 
-## Quick Start
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/zFusions/Dollyt?style=flat-square&color=111111&label=release" alt="Release">
+  <img src="https://img.shields.io/github/license/zFusions/Dollyt?style=flat-square&color=111111&label=license" alt="License">
+  <img src="https://img.shields.io/github/actions/workflow/status/zFusions/Dollyt/ci.yml?style=flat-square&color=111111&label=CI" alt="CI">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-111111?style=flat-square" alt="Windows x64">
+  <img src="https://img.shields.io/badge/lang-FR%20%2F%20EN-111111?style=flat-square" alt="French and English">
+</p>
 
-1. Download the [latest Windows installer](https://github.com/zFusions/Dollyt/releases/latest).
-2. Run the installer (WebView2 Runtime is required).
-3. Paste a YouTube URL and export.
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="Dollyt demo" width="880">
+</p>
+
+<p align="center">
+  <strong>Local. Fast. Yours.</strong><br>
+  A desktop YouTube clip exporter that never uploads a byte to a Dollyt server.<br>
+  <sub>yt-dlp for extraction, FFmpeg for encoding, Tauri + React for the interface.</sub>
+</p>
+
+---
+
+## What it does
+
+| | |
+| --- | --- |
+| **Paste** | Any YouTube URL — clip or full video |
+| **Pick** | TikTok 9:16, Reels, Shorts, YouTube 16:9, X, raw source, local quality, max quality, MP3 320k or lossless FLAC |
+| **Queue** | Stack exports — they run one at a time in the background while you keep working (or play Snake) |
+| **Get** | The file lands in your folder; preview it in-app, re-open it from History |
 
 ## Features
 
-- **Local preview** — See the video in-app before exporting.
-- **Presets** — TikTok, Reels, Shorts, YouTube, X, raw source, local quality, max quality, MP3 and lossless FLAC audio.
-- **Export queue** — Stack multiple exports; they run one at a time in the background.
-- **FFmpeg encoding** — Optional hardware encoding (NVIDIA NVENC or AMD AMF).
-- **History** — Re-export from your past exports, with a live export queue.
-- **Privacy** — All processing is local; no Dollyt telemetry.
-- **Bilingual** — French and English interface.
+- **Local preview** — watch the video in-app before exporting
+- **Export queue** — multiple jobs, live progress per job, per-job cancel
+- **Audio exports** — MP3 320k or FLAC lossless, with a custom audio player
+- **FFmpeg encoding** — optional hardware encoding (NVIDIA NVENC or AMD AMF)
+- **History** — every export saved locally, re-open or re-export anytime
+- **Snake** — a tiny game that keeps you company during long exports, with a persistent high score
+- **Bilingual** — French and English, switches instantly
+- **Privacy** — all processing is local; no telemetry, no account, no Dollyt server
 
-## Demo
+## Screenshots
 
-![Dollyt demo](docs/assets/demo.gif)
+<p align="center">
+  <img src="docs/assets/home-preview.png" alt="Home" width="620"><br>
+  <sub>Home — paste, pick a preset, go</sub>
+</p>
 
-## Usage
+<p align="center">
+  <img src="docs/assets/presets-preview.png" alt="Presets" width="620"><br>
+  <sub>Presets — grouped by network, format badge, details below</sub>
+</p>
 
-1. Paste a YouTube URL.
-2. Choose a preset and select a range.
-3. Export the clip.
-4. Open the result from the completion screen or the History page.
+<p align="center">
+  <img src="docs/assets/settings-preview.png" alt="Settings" width="620"><br>
+  <sub>Settings — output folder, cookies, updates, developer mode</sub>
+</p>
 
-Dollyt supports French and English. The first launch follows the system language when it is supported; a manual choice is persisted locally.
+<p align="center">
+  <img src="docs/assets/queue-preview.png" alt="History" width="620"><br>
+  <sub>History — past exports plus the live export queue</sub>
+</p>
+
+## Quick start
+
+1. Download the [latest Windows installer](https://github.com/zFusions/Dollyt/releases/latest) and run it (WebView2 Runtime required).
+2. On first launch, FFmpeg, ffprobe, yt-dlp and Deno are downloaded from pinned official releases and verified with SHA-256.
+3. Paste a YouTube URL, pick a preset, export.
 
 ## Requirements
 
-- Windows 10 version 1809 or later, or Windows 11 (x64).
-- WebView2 Runtime.
-- Rust stable and the Tauri prerequisites for source builds.
-- Node.js and npm.
+- Windows 10 1809+ or Windows 11 (x64), WebView2 Runtime
+- Rust stable + Tauri prerequisites, Node.js and npm — for source builds only
 
-yt-dlp is downloaded from an official pinned GitHub release and verified with SHA-256 before use. On first launch, FFmpeg, ffprobe and Deno are downloaded from pinned official releases and verified with SHA-256 into `%LOCALAPPDATA%\Dollyt\bin`. An internet connection is required for this one-time setup.
-
-Runtime tool licenses and sources are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
+Runtime tool licenses and sources: [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Build from source
 
@@ -59,13 +90,13 @@ npm install
 npm run tauri dev
 ```
 
-For a release build:
+Release build:
 
 ```powershell
 npm run tauri build
 ```
 
-The generated executable and installer are written below `src-tauri\target\release`.
+Output lands in `src-tauri\target\release`.
 
 ## Development
 
@@ -78,15 +109,11 @@ cargo clippy --manifest-path src-tauri\Cargo.toml -- -D warnings
 cargo fmt --manifest-path src-tauri\Cargo.toml -- --check
 ```
 
-## Architecture
-
-The React frontend owns navigation, transient editor state and the local history view. Tauri commands provide a narrow boundary to the Rust backend. Rust validates YouTube URLs, invokes yt-dlp, performs FFmpeg processing and emits progress events. Settings and presets live in `%LOCALAPPDATA%\Dollyt`; temporary previews and filmstrips live in the user temporary directory.
-
-See [docs/INFRA.md](docs/INFRA.md) for the current data-flow map.
+The React frontend owns navigation, editor state and history. Tauri commands form a narrow boundary to the Rust backend: URL validation, yt-dlp extraction, FFmpeg processing, progress events. Settings and presets live in `%LOCALAPPDATA%\Dollyt`. See [docs/INFRA.md](docs/INFRA.md) for the data-flow map.
 
 ## Privacy and legal notice
 
-Dollyt does not provide a Dollyt server, telemetry or account system. Network traffic is made to YouTube/googlevideo for media work and GitHub for the pinned yt-dlp release. Use the software only with content you are allowed to download and process. Dollyt is not affiliated with YouTube and does not bypass DRM.
+Dollyt has no server, no telemetry and no account system. Network traffic goes to YouTube/googlevideo for media work and to GitHub for the pinned yt-dlp release. Use it only on content you're allowed to download and process. Dollyt is not affiliated with YouTube and does not bypass DRM.
 
 ## Contributing
 
@@ -94,6 +121,4 @@ Keep changes focused, add a regression test for behavior changes, and run the va
 
 ## License and branding
 
-The source code is available under the MIT License. See [LICENSE](LICENSE).
-
-The Dollyt name and logo are not granted for use as the identity of a fork; see [TRADEMARKS.md](TRADEMARKS.md). Forks must use distinct branding and identify themselves as independent projects.
+Source code under the [MIT License](LICENSE). The Dollyt name and logo are not granted for use as the identity of a fork — see [TRADEMARKS.md](TRADEMARKS.md). Forks must use distinct branding and identify themselves as independent projects.
