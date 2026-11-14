@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="docs/assets/Banner.png" alt="Dollyt banner" width="100%">
   <img src="docs/assets/logo.png" alt="Dollyt logo" height="80">
   <br>
   <b>Everything. Exported.</b>
