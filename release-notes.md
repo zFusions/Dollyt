@@ -3,7 +3,7 @@
 ### New
 
 - **Export queue**: a dedicated page shows running, queued, and finished exports with stage and percentage. One job at a time; others wait their turn.
-- **Audio export**: two new presets — MP3 and FLAC (lossy / lossless) — with a built-in audio player to preview the result.
+- **Audio export**: two new presets, MP3 and FLAC (lossy / lossless), with a built-in audio player to preview the result.
 - **Hardware encoding**: settings option to use the GPU (NVIDIA / AMD) instead of the CPU, with a **Quality** or **Speed** mode and a clear explanation of both.
 - **Copy button on errors**: long yt-dlp error messages can now be copied directly.
 - **Smoother progress**: the bar advances throughout the download instead of jumping from 5% to 70%.
@@ -12,9 +12,9 @@
 
 ### Fixed
 
-- **Wrong clip duration**: a 1:05–2:12 selection could export as ~11 s. Cuts now match the chosen range exactly.
+- **Wrong clip duration**: a 1:05-2:12 selection could export as ~11 s. Cuts now match the chosen range exactly.
 - **Video exports failing** on some formats (VP9/1440p): downloads now prefer a reliable codec.
-- **GPU encoding never used on AMD**: GPU detection fixed — exports are significantly faster.
+- **GPU encoding never used on AMD**: GPU detection fixed, exports are significantly faster.
 - **Silent export failures**: errors now remain visible in the queue with full details.
 - **Progress resetting to 0%** when leaving the screen mid-export.
 - **Dropdown animation** on selectors is now more visible.
