@@ -9,14 +9,14 @@ export const SOCIAL_PRESET_IDS = new Set([
   "youtube",
 ]);
 
-const PRESET_NAMES: Record<string, string> = {
-  edition: t("presetNameEdition"),
-  source: t("presetNameSource"),
-  "quality-max": t("presetNameQualityMax"),
+const PRESET_NAMES: Record<string, () => string> = {
+  edition: () => t("presetNameEdition"),
+  source: () => t("presetNameSource"),
+  "quality-max": () => t("presetNameQualityMax"),
 };
 
 export function presetDisplayName(p: Preset): string {
-  return PRESET_NAMES[p.id] ?? p.name;
+  return PRESET_NAMES[p.id]?.() ?? p.name;
 }
 
 export function presetShortLabel(p: Preset): string {
@@ -25,44 +25,46 @@ export function presetShortLabel(p: Preset): string {
 
 export type PresetBrief = { lead: string; points: string[] };
 
-const PRESET_BRIEF: Record<string, PresetBrief> = {
-  tiktok: {
-    lead: t("tiktokBrief"),
-    points: [t("tiktokPoint1"), t("tiktokPoint2"), t("tiktokPoint3")],
-  },
-  reels: {
-    lead: t("reelsBrief"),
-    points: [t("reelsPoint1"), t("reelsPoint2")],
-  },
-  shorts: {
-    lead: t("shortsBrief"),
-    points: [t("shortsPoint1"), t("shortsPoint2")],
-  },
-  youtube: {
-    lead: t("youtubeBrief"),
-    points: [t("youtubePoint1"), t("youtubePoint2")],
-  },
-  x: {
-    lead: t("xBrief"),
-    points: [t("xPoint1"), t("xPoint2")],
-  },
-  edition: {
-    lead: t("editionBrief"),
-    points: [t("editionPoint1"), t("editionPoint2")],
-  },
-  source: {
-    lead: t("sourceBrief"),
-    points: [t("sourcePoint1"), t("sourcePoint2")],
-  },
-  "quality-max": {
-    lead: t("qualityMaxBrief"),
-    points: [t("qualityMaxPoint1"), t("qualityMaxPoint2")],
-  },
-};
+function presetBriefs(): Record<string, PresetBrief> {
+  return {
+    tiktok: {
+      lead: t("tiktokBrief"),
+      points: [t("tiktokPoint1"), t("tiktokPoint2"), t("tiktokPoint3")],
+    },
+    reels: {
+      lead: t("reelsBrief"),
+      points: [t("reelsPoint1"), t("reelsPoint2")],
+    },
+    shorts: {
+      lead: t("shortsBrief"),
+      points: [t("shortsPoint1"), t("shortsPoint2")],
+    },
+    youtube: {
+      lead: t("youtubeBrief"),
+      points: [t("youtubePoint1"), t("youtubePoint2")],
+    },
+    x: {
+      lead: t("xBrief"),
+      points: [t("xPoint1"), t("xPoint2")],
+    },
+    edition: {
+      lead: t("editionBrief"),
+      points: [t("editionPoint1"), t("editionPoint2")],
+    },
+    source: {
+      lead: t("sourceBrief"),
+      points: [t("sourcePoint1"), t("sourcePoint2")],
+    },
+    "quality-max": {
+      lead: t("qualityMaxBrief"),
+      points: [t("qualityMaxPoint1"), t("qualityMaxPoint2")],
+    },
+  };
+}
 
 export function presetBrief(p: Preset): PresetBrief {
   return (
-    PRESET_BRIEF[p.id] ?? {
+    presetBriefs()[p.id] ?? {
       lead: p.description || p.name,
       points: [],
     }
@@ -71,18 +73,20 @@ export function presetBrief(p: Preset): PresetBrief {
 
 /** Sous-titre de ligne dans la liste. */
 export function presetRowSub(p: Preset): string {
-  const byId: Record<string, string> = {
-    tiktok: t("tiktokSub"),
-    reels: t("reelsSub"),
-    shorts: t("shortsSub"),
-    youtube: t("youtubeSub"),
-    x: t("xSub"),
-    edition: t("editionSub"),
-    source: t("sourceSub"),
-    "quality-max": t("qualityMaxSub"),
-  };
-  return byId[p.id] ?? presetBrief(p).lead;
+  const key = PRESET_SUB_KEYS[p.id];
+  return key ? t(key) : presetBrief(p).lead;
 }
+
+const PRESET_SUB_KEYS: Record<string, Parameters<typeof t>[0]> = {
+  tiktok: "tiktokSub",
+  reels: "reelsSub",
+  shorts: "shortsSub",
+  youtube: "youtubeSub",
+  x: "xSub",
+  edition: "editionSub",
+  source: "sourceSub",
+  "quality-max": "qualityMaxSub",
+};
 
 function videoCodecLabel(codec: string): string {
   if (codec === "libx264") return t("h264");
