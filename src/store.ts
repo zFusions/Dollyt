@@ -13,6 +13,8 @@ export type ExportJob = {
   title: string;
   thumbnailUrl: string;
   kind: "clip" | "full";
+  startSecs?: number;
+  endSecs?: number;
   stage: string;
   percent: number;
   state: ExportJobState;
@@ -27,6 +29,8 @@ export type HistoryEntry = {
   outputPath: string;
   thumbnailUrl: string;
   kind: "clip" | "full";
+  startSecs?: number;
+  endSecs?: number;
   createdAt: number;
 };
 
