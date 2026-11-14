@@ -1,4 +1,5 @@
 import { PrimaryButton } from "./PrimaryButton";
+import { t } from "../i18n";
 
 type Props = {
   open: boolean;
@@ -14,7 +15,7 @@ export function DevModeDialog({ open, onCancel, onConfirm }: Props) {
       <button
         type="button"
         className="set-dev-gate-backdrop"
-        aria-label="Fermer"
+        aria-label={t("close")}
         onClick={onCancel}
       />
       <div
@@ -24,24 +25,22 @@ export function DevModeDialog({ open, onCancel, onConfirm }: Props) {
         className="set-dev-gate-card"
       >
         <h2 id="dev-gate-title" className="set-dev-gate-title">
-          Mode développeur
+          {t("devMode")}
         </h2>
         <p className="meta set-dev-gate-lead">
-          Tu pourras régler CRF, fps, Mbps et le preset x264 au-dessus des réglages
-          TikTok, Reels, etc. Sans ces bases FFmpeg, tu peux rester sur les
-          presets.
+          {t("devGateLead")}
         </p>
         <ul className="meta set-dev-gate-list">
-          <li>Un CRF trop bas ou trop de Mbps donne un gros fichier sans mieux sur le réseau.</li>
-          <li>Un fps ou un plafond Mbps incohérent peut bloquer l&apos;upload.</li>
-          <li>Ces valeurs comptent pour chaque export depuis l&apos;accueil.</li>
+          <li>{t("devGateLi1")}</li>
+          <li>{t("devGateLi2")}</li>
+          <li>{t("devGateLi3")}</li>
         </ul>
         <div className="set-dev-gate-actions">
           <PrimaryButton variant="default" className="btn-sm" onClick={onCancel}>
-            Annuler
+            {t("cancel")}
           </PrimaryButton>
           <PrimaryButton variant="primary" className="btn-sm" onClick={onConfirm}>
-            Activer le mode développeur
+            {t("devGateConfirm")}
           </PrimaryButton>
         </div>
       </div>

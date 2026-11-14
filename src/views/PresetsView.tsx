@@ -9,6 +9,7 @@ import { PresetAppIcon } from "../components/presets/PresetAppIcon";
 import { Panel } from "../components/ui/Panel";
 import {
   presetBrief,
+  presetDisplayName,
   presetRowExportSpec,
   SOCIAL_PRESET_IDS,
 } from "../lib/presetsUi";
@@ -40,10 +41,7 @@ function PresetPickList({
           <PresetAppIcon presetId={p.id} className="pick-row-icon" />
           <span className="pick-row-main">
             <span className="set-label">
-              {p.name}
-              {p.id === "quality-max" ? (
-                <span className="pick-row-badge">{t("qualityMaxBadge")}</span>
-              ) : null}
+              {presetDisplayName(p)}
             </span>
           </span>
           <span className="pick-row-spec mono" title={presetRowExportSpec(p)}>
@@ -142,7 +140,7 @@ export function PresetsView() {
         <section className="set-section preset-active">
           <h2 className="set-heading">{t("brief")}</h2>
           <Panel className="panel-pad">
-            <p className="preset-active-name">{active.name}</p>
+            <p className="preset-active-name">{presetDisplayName(active)}</p>
             <p className="preset-active-lead">{activeBrief.lead}</p>
             {activeBrief.points.length > 0 ? (
               <ul className="preset-active-list meta">

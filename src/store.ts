@@ -181,7 +181,7 @@ export const useDollytStore = create<DollytState>((set, get) => {
     resetProgress(0);
     set({
       downloadState: "loading",
-      downloadStage: "Préparation",
+      downloadStage: "",
       downloadPath: "",
       downloadOutputPath: "",
       status: "",

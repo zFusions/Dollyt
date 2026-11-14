@@ -1,6 +1,6 @@
 import { SnakeGame } from "./SnakeGame";
+import { t } from "../i18n";
 
-/** Mini snake pendant le téléchargement — palette Chambre noire. */
 export function SnakeWait() {
   return (
     <div className="wait-snake-wrap">
@@ -10,7 +10,7 @@ export function SnakeWait() {
         cols={26}
         rows={11}
         className="wait-snake"
-        ariaLabel="Mini-jeu Snake : flèches ou glisser pour diriger"
+        ariaLabel={t("snakeAriaSteer")}
       />
     </div>
   );

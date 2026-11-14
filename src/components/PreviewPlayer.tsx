@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { RefObject, useState } from "react";
 import { previewSrc } from "../lib/previewSrc";
 
@@ -62,7 +63,7 @@ export function PreviewPlayer({
         onError={() => {
           if (awaitingLocal) return;
           onStreamError?.();
-          setErr("Lecture impossible.");
+          setErr(t("playbackError"));
         }}
         onLoadedData={() => setErr("")}
         onCanPlay={() => onCanPlay?.()}
