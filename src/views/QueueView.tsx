@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { revealFile } from "../api/dollyt";
-import { t } from "../i18n";
+import { backendText, t } from "../i18n";
 import { useDollytStore, type HistoryEntry } from "../store";
 
 function HistoryCard({ entry }: { entry: HistoryEntry }) {
@@ -66,7 +66,7 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
           {entry.kind === "full" ? t("fullVideoHistory") : t("clipHistory")} ·{" "}
           {new Date(entry.createdAt).toLocaleDateString()}
         </p>
-        {error ? <p className="history-error">{error}</p> : null}
+        {error ? <p className="history-error">{backendText(error)}</p> : null}
       </div>
       <button type="button" className="btn btn-sm" onClick={openLocation}>
         {t("openFolder")}
