@@ -18,8 +18,9 @@ import { setLeaveGuard } from "../lib/leaveGuard";
 
 const DEFAULTS: Settings = {
   exportDir: "",
-  nameTemplate: "{titre}_depuis-{debut}s_jusqu-a-{fin}s",
+  nameTemplate: "{titre}_{debut}-{fin}",
   hardwareEncode: false,
+  encodeQuality: "quality",
   autoUpdateYtdlp: false,
   ytdlpCookiesBrowser: "",
   ytdlpCookiesFile: "",
@@ -162,9 +163,7 @@ export function SettingsView() {
       />
       <header className="set-head">
         <h1 className="page-title">{t("settingsTitle")}</h1>
-        <p className="page-sub">
-          {t("settingsSub")} YouTube se choisit dans Presets.
-        </p>
+        <p className="page-sub">{t("settingsSub")}</p>
         <div className="set-head-actions">
           {msg ? <p className="meta">{msg}</p> : null}
           <PrimaryButton
@@ -183,14 +182,15 @@ export function SettingsView() {
         <Panel>
           <div className="set-group">
             <SettingRow label={t("language")} hint={t("savedLocally")}>
-              <select
-                className="field"
+              <CustomSelect
                 value={locale}
-                onChange={(event) => setLocale(event.target.value as "fr" | "en")}
-              >
-                <option value="fr">{t("french")}</option>
-                <option value="en">{t("english")}</option>
-              </select>
+                onChange={(v) => setLocale(v as "fr" | "en")}
+                options={[
+                  { value: "fr", label: t("french") },
+                  { value: "en", label: t("english") },
+                ]}
+                ariaLabel={t("language")}
+              />
             </SettingRow>
           </div>
         </Panel>
@@ -251,20 +251,26 @@ export function SettingsView() {
                 label={t("hwEncode")}
               />
             </SettingRow>
-          </div>
-        </Panel>
-      </section>
-
-      <section className="set-section">
-        <h2 className="set-heading">{t("engine")}</h2>
-        <Panel>
-          <div className="set-group">
-            <SettingRow
-              label="yt-dlp"
-              hint={t("ytdlpSecureHint")}
-            >
-              <span className="meta">{t("secured")}</span>
-            </SettingRow>
+            {draft.hardwareEncode ? (
+              <SettingRow label={t("encodeMode")} hint={t("encodeModeHint")}>
+                <CustomSelect
+                  value={draft.encodeQuality}
+                  onChange={(v) => setDraft({ ...draft, encodeQuality: v })}
+                  options={[
+                    { value: "quality", label: t("encodeQualityOpt") },
+                    { value: "speed", label: t("encodeSpeedOpt") },
+                  ]}
+                  ariaLabel={t("encodeMode")}
+                />
+              </SettingRow>
+            ) : null}
+            {draft.hardwareEncode ? (
+              <p className="encode-mode-desc">
+                {draft.encodeQuality === "speed"
+                  ? t("encodeSpeedDesc")
+                  : t("encodeQualityDesc")}
+              </p>
+            ) : null}
           </div>
         </Panel>
       </section>

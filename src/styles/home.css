@@ -69,12 +69,16 @@
   .download-loading .home-snake {
     width: 100%;
     margin: 0 0 28px;
-    border: 1px solid rgb(233 225 211 / 0.14);
-    border-radius: 16px;
-    background: #0e0b0a;
+    border: 0;
+    border-radius: var(--r-xl);
+    background:
+      linear-gradient(145deg, rgb(29 25 24 / 0.96), rgb(17 16 16 / 0.94)),
+      var(--surface-1);
     box-shadow:
-      0 12px 26px rgb(0 0 0 / 0.26),
-      inset 0 1px 0 rgb(255 255 255 / 0.04);
+      inset 0 0 0 1px rgb(255 255 255 / 0.14),
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 6px 28px rgb(0 0 0 / 0.42),
+      0 2px 10px rgb(0 0 0 / 0.38);
   }
   .download-loading .home-snake-hint {
     padding: 8px 12px;
@@ -120,6 +124,9 @@
     color: var(--fg-2);
     line-height: 1.45;
   }
+  .download-copy {
+    margin-top: 10px;
+  }
   .download-progress {
     height: 18px;
     margin-top: 28px;
@@ -154,7 +161,6 @@
     gap: clamp(24px, 5vw, 64px);
     width: min(100%, 1040px);
     padding: 18px 0;
-    border-top: 1px solid var(--line);
   }
   .download-result h1 {
     margin: 0;
@@ -171,16 +177,18 @@
   }
   .download-preview {
     overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: #050505;
-    box-shadow: 0 24px 80px rgb(0 0 0 / 0.35);
+    border-radius: var(--r-xl);
+    background: var(--surface-1);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.14),
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 6px 28px rgb(0 0 0 / 0.42),
+      0 2px 10px rgb(0 0 0 / 0.38);
   }
   .download-preview-label {
     margin: 0;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--line);
-    color: var(--fg-2);
+    padding: 10px 14px 8px;
+    color: var(--fg-3);
     font-family: var(--font-ui);
     font-size: var(--fs-meta);
     font-weight: 500;
@@ -191,6 +199,146 @@
     max-height: 62dvh;
     aspect-ratio: 9 / 16;
     object-fit: contain;
+  }
+  .download-preview--audio {
+    background: var(--surface-1);
+  }
+  .download-preview--audio .audio-player {
+    margin: 6px;
+    border-radius: var(--r-lg);
+    background: var(--surface-2);
+    box-shadow:
+      inset 0 2px 5px rgb(0 0 0 / 0.34),
+      inset 0 0 0 1px rgb(0 0 0 / 0.22),
+      inset 0 1px 0 rgb(255 255 255 / 0.04);
+  }
+  .audio-player {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+  }
+  .audio-play {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    color: var(--on-accent);
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .audio-play:hover {
+    transform: scale(1.06);
+    background: color-mix(in srgb, var(--accent) 88%, #fff);
+  }
+  .audio-play:active {
+    transform: scale(0.96);
+  }
+  .audio-play svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+  .audio-eq {
+    flex: none;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 22px;
+  }
+  .audio-eq span {
+    width: 3px;
+    height: 30%;
+    border-radius: var(--r-pill);
+    background: var(--fg-3);
+    transition: background 0.2s ease;
+  }
+  .audio-eq[data-on] span {
+    background: var(--accent);
+    animation: audio-eq 0.9s ease-in-out infinite;
+  }
+  .audio-eq span:nth-child(2) { animation-delay: 0.15s; }
+  .audio-eq span:nth-child(3) { animation-delay: 0.3s; }
+  .audio-eq span:nth-child(4) { animation-delay: 0.45s; }
+  .audio-eq span:nth-child(5) { animation-delay: 0.6s; }
+  @keyframes audio-eq {
+    0%, 100% { height: 25%; }
+    50% { height: 100%; }
+  }
+  .audio-track {
+    position: relative;
+    flex: 1;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .audio-track::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 6px;
+    border-radius: var(--r-pill);
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .audio-fill {
+    position: absolute;
+    left: 0;
+    height: 6px;
+    border-radius: var(--r-pill);
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #ffb199));
+  }
+  .audio-thumb {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--r-pill);
+    background: var(--fg);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+    transform: translateX(-50%) scale(0);
+    transition: transform 0.15s ease;
+  }
+  .audio-track:hover .audio-thumb,
+  .audio-track:focus-visible .audio-thumb {
+    transform: translateX(-50%) scale(1);
+  }
+  .audio-track:focus-visible {
+    outline: none;
+  }
+  .audio-track:focus-visible::before {
+    box-shadow: inset 0 0 0 1px var(--focus);
+  }
+  .audio-time {
+    flex: none;
+    font-family: var(--font-code);
+    font-size: var(--fs-meta);
+    color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+    min-width: 86px;
+    text-align: right;
+  }
+  .download-bg {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .download-bg .btn {
+    gap: 7px;
+  }
+  .download-bg-hint {
+    margin: 0;
+    color: var(--fg-3);
+    font-size: var(--fs-meta);
+    text-align: center;
   }
   .download-actions {
     display: flex;
@@ -214,6 +362,36 @@
     margin: 12px 0 0;
     color: var(--warn);
     font-size: var(--fs-meta);
+  }
+  .download-queue {
+    margin-top: 28px;
+    max-width: 520px;
+    width: 100%;
+  }
+  .download-queue-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .download-queue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: var(--r-md);
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .download-queue-title {
+    font-size: var(--fs-body, 13px);
+    color: var(--fg-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   @media (prefers-reduced-motion: reduce) {
     .download-progress span {
@@ -887,6 +1065,10 @@
   }
   .home-status[data-tone="err"] {
     color: var(--err);
+  }
+  .home-copy {
+    margin-left: 8px;
+    vertical-align: middle;
   }
   .home-composer-stack:has([aria-invalid="true"]) .home-composer-slab {
     box-shadow:

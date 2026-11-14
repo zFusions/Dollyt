@@ -8,11 +8,12 @@ import {
   type Preset,
 } from "../api/dollyt";
 import { SnakeLoader } from "../components/SnakeLoader";
+import { CopyButton } from "../components/CopyButton";
 import { TimeInput } from "../components/TimeInput";
 import { Switch } from "../components/Toggle";
 import { WindowControls } from "../components/WindowChrome";
 import { clampTime, snapToFrame, formatTimeInput } from "../lib/time";
-import { presetShortLabel } from "../lib/presetsUi";
+import { presetSelectOptions } from "../lib/presetsUi";
 import { CustomSelect } from "../components/ui/CustomSelect";
 import { normalizeYoutubeUrl, validateYoutubeUrl } from "../lib/validateUrl";
 import { useDollytStore } from "../store";
@@ -33,7 +34,7 @@ export function HomeView() {
   const setSelectedPresetId = useDollytStore((s) => s.setSelectedPresetId);
   const exportFullVideo = useDollytStore((s) => s.exportFullVideo);
   const setExportFullVideo = useDollytStore((s) => s.setExportFullVideo);
-  const beginDownload = useDollytStore((s) => s.beginDownload);
+
   const resetDownload = useDollytStore((s) => s.resetDownload);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [busy, setBusy] = useState(false);
@@ -64,7 +65,6 @@ export function HomeView() {
     }
     setError("");
     setBusy(true);
-    beginDownload();
     go("download");
     setVideo(null);
     setStoryboard(null);
@@ -101,13 +101,34 @@ export function HomeView() {
         return;
       }
       if (!exportFullVideo) setRangeSecs(start, end);
-      await startCutJob({
+      const jobId = await startCutJob({
         rawUrl: target,
         formatId: loaded.exportFormatId,
         startSecs: start,
         endSecs: end,
         presetId: selectedPresetId,
       });
+      const st = useDollytStore.getState();
+      const isActive =
+        st.activeJobId === null &&
+        !st.jobs.some((job) => job.state === "running");
+      st.addJob({
+        id: jobId,
+        url: target,
+        title: loaded.title || "",
+        thumbnailUrl: loaded.thumbnailUrl || "",
+        kind: exportFullVideo ? "full" : "clip",
+        stage: "",
+        percent: 0,
+        state: isActive ? "running" : "queued",
+        message: "",
+        outputPath: "",
+        previewPath: "",
+      });
+      if (isActive) {
+        st.setActiveJob(jobId);
+        st.beginDownload();
+      }
     } catch (err) {
       const msg = String(err);
       setError(msg);
@@ -242,11 +263,7 @@ export function HomeView() {
                       disabled={busy || presets.length === 0}
                       onChange={setSelectedPresetId}
                       ariaLabel={t("exportPresetAria")}
-                      options={presets.map((p) => ({
-                        value: p.id,
-                        label: presetShortLabel(p),
-                        iconId: p.id,
-                      }))}
+                      options={presetSelectOptions(presets)}
                     />
                   </label>
                   <div className="home-mode-field">
@@ -306,6 +323,7 @@ export function HomeView() {
               role={error ? "alert" : "status"}
             >
               {error ? backendText(error) : status ? backendText(status) : null}
+              {error ? <CopyButton text={error} className="home-copy" /> : null}
             </p>
           ) : null}
         </section>

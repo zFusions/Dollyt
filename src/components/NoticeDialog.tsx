@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { t } from "../i18n";
 import { PrimaryButton } from "./PrimaryButton";
 
@@ -11,7 +12,7 @@ type Props = {
 export function NoticeDialog({ open, title, message, onClose }: Props) {
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="set-dev-gate" role="presentation">
       <button
         type="button"
@@ -35,6 +36,7 @@ export function NoticeDialog({ open, title, message, onClose }: Props) {
           </PrimaryButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

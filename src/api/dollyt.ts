@@ -33,6 +33,8 @@ export type Settings = {
   exportDir: string;
   nameTemplate: string;
   hardwareEncode: boolean;
+  /** quality | speed — mode GPU quand l'encodage matériel est actif */
+  encodeQuality: string;
   autoUpdateYtdlp: boolean;
   /** firefox | "" */
   ytdlpCookiesBrowser: string;
@@ -168,9 +170,9 @@ export async function startCutJob(args: {
   throw new Error("Export disponible seulement dans l’app Tauri (npm run tauri dev).");
 }
 
-export async function cancelJob(): Promise<void> {
+export async function cancelJob(jobId?: number): Promise<void> {
   if (isTauri()) {
-    await invoke("cancel_job");
+    await invoke("cancel_job", jobId === undefined ? {} : { jobId });
   }
 }
 
