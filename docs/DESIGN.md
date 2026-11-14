@@ -13,15 +13,15 @@ Cible : Windows 10 1809+ et Windows 11, x64, WebView2. Au repos, le CPU reste qu
 ## Architecture
 
 ```
-src/                 interface TypeScript, Vite, React
+src/                 interface TypeScript, Vite, React, Zustand, i18n FR/EN
 src-tauri/           Tauri 2, Rust stable
-docs/                ce fichier, les jalons, plus tard PERF.md
-scripts/
-installer/           Inno Setup, au jalon M4
-.github/workflows/   ci.yml et release.yml, au jalon M4
+  presets/           8 presets JSON embarqués
+docs/                ce fichier, INFRA.md, jalons, plans
+installer/           NSIS via Tauri bundler (pas d'Inno Setup)
+.github/workflows/   ci.yml et release.yml
 ```
 
-`npm run dev` lancera l'interface dans le navigateur avec un faux backend. La même version figurera dans `tauri.conf.json`, `package.json` et `Cargo.toml`. La CI tournera en `--locked`. Aucun de ces fichiers n'existe encore.
+`npm run dev` lance l'interface dans le navigateur avec un mock. `npm run tauri dev` lance l'app réelle. La même version figure dans `tauri.conf.json`, `package.json` et `Cargo.toml`. La CI tourne en `--locked`.
 
 Frontend : état léger (Zustand ou un équivalent du même rôle, choisi quand le code commencera). Animations en CSS ou Web Animations API. Polices embarquées en woff2, aucun CDN. Thème sombre seul en v1. Cadre natif Windows, barre de titre sombre, pas de barre de titre personnalisée.
 
@@ -29,11 +29,11 @@ Modules Rust prévus, séparés : `commands`, `ytdlp`, `ffmpeg`, `jobs`, `preset
 
 Binaires yt-dlp, FFmpeg et Deno : absents du dépôt. Téléchargés au premier lancement dans `%LOCALAPPDATA%\Dollyt\bin`, SHA-256 vérifié, sources officielles seulement. Deno sert à yt-dlp pour les challenges JavaScript de YouTube.
 
-Mise à jour de l'application : plugin officiel d'updater de Tauri 2. L'identifiant exact du plugin et les clés de signature se confirment dans la documentation Tauri 2 au jalon M4. Non vérifié à ce stade.
+Mise à jour de l'application : plugin officiel `@tauri-apps/plugin-updater` (Tauri 2). Releases GitHub publiques, `latest.json` signé minisign, installateur NSIS. Réglages : auto-update app, auto-update yt-dlp, vérification manuelle, version ignorée. En production.
 
-Presets : JSON versionnés, validés par serde. Presets intégrés en lecture seule. Presets utilisateur : créer, dupliquer, importer, exporter. Champs : nom, conteneur, codec vidéo, CRF ou débit, résolution et ratio, fps, recadrage (aucun, centré, décalage réglable), codec et débit audio, gabarit de nom de fichier.
+Presets : JSON embarqués en lecture seule (8 : TikTok, Reels, Shorts, YouTube, X, Source brute, Édition/Qualité locale, QUALITY MAX). Presets utilisateur : reporté. Champs : conteneur, codec vidéo (copie ou libx264 CRF), résolution/ratio, fps, débit max, audio AAC, gabarit de nom de fichier.
 
-Presets intégrés prévus : Source brute (MKV, copie de flux), Édition (MP4 H.264 haute qualité, qualité de la source), TikTok 9:16, Reels 9:16, Shorts 9:16, YouTube 16:9. Les résolutions et débits par défaut de chaque plateforme se vérifient dans la documentation actuelle de la plateforme avant d'être écrits. Ils ne sont pas fixés ici.
+Presets intégrés : TikTok 9:16, Reels 9:16, Shorts 9:16, YouTube 16:9, X 9:16 — débits calés sur les limites publiées de chaque plateforme (vérifiés à l'écriture des JSON). Source brute (MKV copie), Qualité locale (MP4 CRF 14), QUALITY MAX (meilleur flux YouTube en copie MKV).
 
 Dossier d'export dans les Paramètres. Gabarit de nom par défaut : `{titre}_{debut}-{fin}`.
 
@@ -99,7 +99,7 @@ Mouvement : `transform` et `opacity` uniquement. Durées 120, 200 et 360 ms. Cou
 - Playhead : trait rouge de 1 px, petite poignée.
 - `prefers-reduced-motion` est respecté. Rien ne tourne en continu quand l'application est au repos.
 
-Textes en français, sobres, sans point d'exclamation, sans emoji, sans jargon de jeu. Exemple : « Colle un lien YouTube ».
+Interface bilingue FR/EN (`src/i18n.ts`), choix dans Paramètres, détection `navigator.language` au premier lancement. Textes sobres, sans point d'exclamation, sans emoji, sans jargon de jeu. Exemple : « Colle un lien YouTube » / « Paste your YouTube link ». Les messages d'erreur du backend Rust sont traduits à l'affichage via `backendText()`.
 
 ### Checklist anti-slop
 
@@ -115,11 +115,12 @@ Textes en français, sobres, sans point d'exclamation, sans emoji, sans jargon d
 
 ## Écrans
 
-1. Accueil. Écran presque vide. Un grand champ en serif : « Colle un lien YouTube ». Détection du presse-papiers en option. Historique récent en grille façon planche-contact.
-2. Éditeur. Preview en haut, au ratio réel de la vidéo. Timeline en bas : bande de miniatures issues des storyboards, deux poignées entrée et sortie, durée sélectionnée en mono, zoom. Panneau droit étroit : preset, taille et qualité estimées, destination, bouton Exporter.
-3. File d'attente. Lignes sobres, trait de progression, annulation, ouverture du dossier.
-4. Paramètres. Dossier de sortie, gabarit de nom, encodage matériel, mise à jour de yt-dlp, dossier des binaires.
-5. Presets. Liste, éditeur, import et export.
+1. Accueil. Écran presque vide. Grand champ : « Colle un lien YouTube ». Preset, bascule clip/vidéo entière, curseurs début/fin. Loader Snake pendant l'export. Historique récent.
+2. Téléchargement. Écran dédié : SnakeLoader, pourcentage lissé, étape (préparation/téléchargement/encodage), puis résultat : preview `<video>`, boutons recommencer/nouvel extrait/ouvrir le fichier.
+3. Éditeur. **Quarantiné en 1.0.x** (`EDITOR_QUARANTINED`) : preview, timeline storyboards, poignées, ExportPanel existent mais sont inaccessibles.
+4. Presets. Deux groupes (Réseaux / Autres), brief localisé du preset actif.
+5. Paramètres. Langue, dossier de sortie, gabarit de nom, encodage matériel, moteur yt-dlp, mises à jour, section Développeur (CRF/fps/audio/x264).
+6. Historique. Grille des exports, suppression, ouverture du dossier.
 
 ## Accessibilité
 
