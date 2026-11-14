@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="Dollyt demo" width="880">
+  <img src="docs/assets/demo.gif" alt="Dollyt demo" width="640">
 </p>
 
 <p align="center">
