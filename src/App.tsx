@@ -118,7 +118,9 @@ function App() {
         if (known) {
           const wasQueued = state.jobs.find((job) => job.id === jobId)?.state === "queued";
           updateJob(jobId, { stage, percent, state: "running" });
-          if (wasQueued || state.activeJobId === jobId) {
+          const isScreenJob = state.activeJobId === jobId;
+          const adoptOrphan = wasQueued && state.activeJobId === null;
+          if (isScreenJob || adoptOrphan) {
             if (state.activeJobId !== jobId) setActiveJob(jobId);
             setDownloadProgress(stage, percent);
           }

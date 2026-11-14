@@ -125,10 +125,8 @@ export function HomeView() {
         outputPath: "",
         previewPath: "",
       });
-      if (isActive) {
-        st.setActiveJob(jobId);
-        st.beginDownload();
-      }
+      st.setActiveJob(jobId);
+      st.beginDownload();
     } catch (err) {
       const msg = String(err);
       setError(msg);
