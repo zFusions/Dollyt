@@ -1,13 +1,16 @@
 import { EDITOR_QUARANTINED } from "../editorAvailability";
 import type { Screen } from "../store";
 import { NavIcon } from "./nav/NavIcons";
+import { t, type MessageKey } from "../i18n";
 
-const ITEMS: { id: Screen; label: string; short: string }[] = [
-  { id: "home", label: "Accueil", short: "Accueil" },
-  { id: "editor", label: "Éditeur", short: "Montage" },
-  { id: "presets", label: "Presets", short: "Presets" },
-  { id: "settings", label: "Paramètres", short: "Réglages" },
-  { id: "queue", label: "Historique", short: "Historique" },
+type NavItem = { id: Screen; labelKey: MessageKey; shortKey: MessageKey };
+
+const ITEMS: NavItem[] = [
+  { id: "home", labelKey: "home", shortKey: "home" },
+  { id: "editor", labelKey: "editor", shortKey: "editorShort" },
+  { id: "presets", labelKey: "presets", shortKey: "presets" },
+  { id: "settings", labelKey: "settings", shortKey: "settingsShort" },
+  { id: "queue", labelKey: "history", shortKey: "history" },
 ];
 
 type Props = {
@@ -21,14 +24,14 @@ export function NavRail({ screen, onNav, editorEnabled, compact }: Props) {
   return (
     <nav
       className={`rail${compact ? " rail--compact" : ""}`}
-      aria-label="Navigation"
+      aria-label={t("navigation")}
     >
       <div className="rail-brand">
         <strong>
           <img className="brand-mark" src="/logo-red.png" alt="" aria-hidden />
           {!compact ? "Dollyt" : null}
         </strong>
-        {!compact ? <span className="meta">Clips YouTube</span> : null}
+        {!compact ? <span className="meta">{t("youtubeClips")}</span> : null}
       </div>
       <div className="rail-nav">
         {(EDITOR_QUARANTINED
@@ -45,13 +48,13 @@ export function NavRail({ screen, onNav, editorEnabled, compact }: Props) {
               onClick={() => onNav(item.id)}
               className="rail-item"
               aria-current={active ? "page" : undefined}
-              title={item.label}
+              title={t(item.labelKey)}
             >
               <span className="rail-icon">
                 <NavIcon id={item.id} />
               </span>
               <span className="rail-label">
-                {compact ? item.short : item.label}
+                {compact ? t(item.shortKey) : t(item.labelKey)}
               </span>
             </button>
           );
