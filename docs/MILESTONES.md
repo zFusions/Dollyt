@@ -16,16 +16,16 @@ Infra clôturée (BYPASS). Plan : [plans/M1.md](plans/M1.md), rapport : [plans/M
 
 ## M2 — Éditeur et timeline
 
-Storyboards, poignées, raccourcis, affinage sur le clip local. Timeline réelle après clôture M1.
+Code présent (storyboards, filmstrip, TimelineEditor, preview locale) mais **quarantiné** en 1.0.x : `EDITOR_QUARANTINED = true` dans `src/editorAvailability.ts`. Réouverture = décision produit explicite.
 
 ## M3 — Presets, export, paramètres
 
-Presets intégrés et utilisateur. Export selon le preset. Écran Paramètres.
+Terminé en 1.0.x : 8 presets JSON, export selon preset, écran Paramètres, historique.
 
 ## M4 — Distribution
 
-Mises à jour de l'application, installeur Inno Setup, CI et release, `SHA256SUMS.txt` joint aux releases. Passe de revue sécurité à la fin.
+Terminé en 1.0.x : releases GitHub automatiques (tag `vX.Y.Z` → NSIS + `latest.json` signé), updater in-app avec ignorer/installer, auto-update yt-dlp, CI `--locked`.
 
 ## M5 — Finition
 
-Direction artistique, animations, passe de performance consignée dans `docs/PERF.md`. Aucun chiffre de performance n'est promis à l'avance. Une mesure, le jour où elle existe, est écrite avec les conditions du test.
+En cours : i18n FR/EN complet,Snake, progression lissée, README public. Reste : screenshots README, `docs/PERF.md`, passe perf.
