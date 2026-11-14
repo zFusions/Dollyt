@@ -58,39 +58,94 @@ export function PresetAppIcon({ presetId, className = "" }: Props) {
     case "source":
       return (
         <svg className={cn} viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M12 4v10m0 0 4-4m-4 4-4-4"
+          <rect
+            x="3"
+            y="4"
+            width="18"
+            height="16"
+            rx="2"
             stroke="currentColor"
             strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
           />
           <path
-            d="M5 18h14"
+            d="M8 4v16M16 4v16"
             stroke="currentColor"
             strokeWidth="2"
-            strokeLinecap="round"
           />
+          <circle cx="5.5" cy="8" r="1" fill="currentColor" />
+          <circle cx="5.5" cy="12" r="1" fill="currentColor" />
+          <circle cx="5.5" cy="16" r="1" fill="currentColor" />
+          <circle cx="18.5" cy="8" r="1" fill="currentColor" />
+          <circle cx="18.5" cy="12" r="1" fill="currentColor" />
+          <circle cx="18.5" cy="16" r="1" fill="currentColor" />
         </svg>
       );
     case "edition":
       return (
         <svg className={cn} viewBox="0 0 24 24" fill="none" aria-hidden>
           <path
-            d="M5 7h14M5 12h9M5 17h12"
+            d="M4 8h16M4 16h16"
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
           />
-          <circle cx="18" cy="12" r="2" fill="currentColor" />
+          <circle
+            cx="14"
+            cy="8"
+            r="2.5"
+            fill="var(--surface-1, #111)"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <circle
+            cx="10"
+            cy="16"
+            r="2.5"
+            fill="var(--surface-1, #111)"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+        </svg>
+      );
+    case "audio":
+      return (
+        <svg className={cn} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M9 18V6l10-2v11.5"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="6.5" cy="18" r="2.5" fill="currentColor" />
+          <circle cx="16.5" cy="15.5" r="2.5" fill="currentColor" />
+        </svg>
+      );
+    case "audio-lossless":
+      return (
+        <svg className={cn} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
         </svg>
       );
     case "quality-max":
       return (
-        <svg className={cn} viewBox="0 0 24 24" aria-hidden>
+        <svg className={cn} viewBox="0 0 24 24" fill="none" aria-hidden>
           <path
-            fill="currentColor"
-            d="M12 2 9.5 9H2l6.5 4.5L6 22l6-4.5L18 22l-2.5-8.5L22 9h-7.5L12 2Z"
+            d="M7 4h10l3.5 5.5L12 20 3.5 9.5 7 4Z"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M3.5 9.5h17M9.5 9.5 12 20l2.5-10.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinejoin="round"
           />
         </svg>
       );

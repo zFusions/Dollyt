@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { t } from "../i18n";
 
 type Props = { children: ReactNode; onReset: () => void };
 type State = { error: Error | null };
@@ -19,7 +20,7 @@ export class EditorErrorBoundary extends Component<Props, State> {
       return (
         <section className="page editor-page editor-opening">
           <p className="editor-opening-title" role="alert">
-            L&apos;éditeur n&apos;a pas pu s&apos;afficher.
+            {t("editorCrashed")}
           </p>
           <p className="meta">{this.state.error.message}</p>
           <button
@@ -30,7 +31,7 @@ export class EditorErrorBoundary extends Component<Props, State> {
               this.props.onReset();
             }}
           >
-            Retour à l&apos;accueil
+            {t("backToHome")}
           </button>
         </section>
       );

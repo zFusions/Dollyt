@@ -21,6 +21,7 @@ const TEXT = "#9a8f83";
 const TICK_START = 150;
 const TICK_MIN = 70;
 const RESTART_DELAY_MS = 500;
+const BEST_KEY = "dollyt-snake-best";
 
 /** Mini-jeu Snake — palette Chambre noire, flèches ou glisser pour diriger. */
 export function SnakeGame({
@@ -64,6 +65,24 @@ export function SnakeGame({
     let deadAt = 0;
     let timer = 0;
     let swipe: { x: number; y: number } | null = null;
+    let best = 0;
+    let newBest = false;
+    try {
+      best = Number(window.localStorage.getItem(BEST_KEY)) || 0;
+    } catch {
+      best = 0;
+    }
+
+    function saveBest() {
+      if (score <= best) return;
+      best = score;
+      newBest = true;
+      try {
+        window.localStorage.setItem(BEST_KEY, String(best));
+      } catch {
+        /* stockage indisponible */
+      }
+    }
 
     function freeCell(): Cell | null {
       const taken = new Set(snake.map((s) => `${s.x},${s.y}`));
@@ -91,6 +110,7 @@ export function SnakeGame({
       started = true;
       dead = false;
       won = false;
+      newBest = false;
       schedule(TICK_START);
     }
 
@@ -120,6 +140,7 @@ export function SnakeGame({
         won = false;
         started = false;
         deadAt = performance.now();
+        saveBest();
         try {
           draw();
         } catch (error) {
@@ -138,6 +159,7 @@ export function SnakeGame({
           started = false;
           dead = false;
           deadAt = performance.now();
+          saveBest();
           try {
             draw();
           } catch (error) {
@@ -214,7 +236,18 @@ export function SnakeGame({
       ctx.font = "12px 'IBM Plex Mono', monospace";
       ctx.textAlign = "left";
       ctx.fillStyle = DIM;
-      ctx.fillText(`SCORE ${String(score).padStart(3, "0")}`, 12, 18);
+      ctx.fillText(
+        `${t("snakeScore")} ${String(score).padStart(3, "0")}`,
+        12,
+        18,
+      );
+      ctx.textAlign = "right";
+      ctx.fillStyle = newBest ? FOOD : DIM;
+      ctx.fillText(
+        `${t("snakeBest")} ${String(best).padStart(3, "0")}`,
+        width - 12,
+        18,
+      );
 
       ctx.textAlign = "center";
       if (dead) {

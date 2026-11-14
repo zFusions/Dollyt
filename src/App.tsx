@@ -33,6 +33,9 @@ function App() {
   const setDownloadProgress = useDollytStore((s) => s.setDownloadProgress);
   const finishDownload = useDollytStore((s) => s.finishDownload);
   const addHistory = useDollytStore((s) => s.addHistory);
+  const updateJob = useDollytStore((s) => s.updateJob);
+  const finishJob = useDollytStore((s) => s.finishJob);
+  const setActiveJob = useDollytStore((s) => s.setActiveJob);
   const { shownScreen, viewPhase } = useDeferredScreen(screen);
   const { dialog: updateDialog, notice: updateNotice } = useAppUpdater();
   const [pendingNav, setPendingNav] = useState<Screen | null>(null);
@@ -105,10 +108,27 @@ function App() {
     if (!isTauri()) return;
     let active = true;
     const unsubs: Array<() => void> = [];
-    listen<{ percent: number; stage: string }>("job-progress", (event) => {
-      if (active) setDownloadProgress(event.payload.stage, event.payload.percent);
-    }).then((unsubscribe) => unsubs.push(unsubscribe));
+    listen<{ jobId: number; stage: string; percent: number }>(
+      "job-progress",
+      (event) => {
+        if (!active) return;
+        const { jobId, stage, percent } = event.payload;
+        const state = useDollytStore.getState();
+        const known = state.jobs.some((job) => job.id === jobId);
+        if (known) {
+          const wasQueued = state.jobs.find((job) => job.id === jobId)?.state === "queued";
+          updateJob(jobId, { stage, percent, state: "running" });
+          if (wasQueued || state.activeJobId === jobId) {
+            if (state.activeJobId !== jobId) setActiveJob(jobId);
+            setDownloadProgress(stage, percent);
+          }
+        } else {
+          setDownloadProgress(stage, percent);
+        }
+      },
+    ).then((unsubscribe) => unsubs.push(unsubscribe));
     listen<{
+      jobId: number;
       ok: boolean;
       message: string;
       outputPath?: string;
@@ -116,24 +136,42 @@ function App() {
     }>(
       "job-finished",
       (event) => {
-        if (active) {
-          const current = useDollytStore.getState();
-          if (event.payload.ok && event.payload.outputPath) {
+        if (!active) return;
+        const { jobId, ok, message, outputPath, previewPath } = event.payload;
+        const state = useDollytStore.getState();
+        const job = state.jobs.find((item) => item.id === jobId);
+        const wasActive = state.activeJobId === jobId;
+        finishJob(jobId, ok, message, previewPath ?? "", outputPath ?? "");
+        if (job) {
+          if (ok && outputPath) {
             addHistory({
-              id: `${Date.now()}-${event.payload.outputPath}`,
-              title: current.video?.title || t("untitledVideo"),
-              url: current.url,
-              outputPath: event.payload.outputPath,
-              thumbnailUrl: current.video?.thumbnailUrl || "",
-              kind: current.exportFullVideo ? "full" : "clip",
+              id: `${Date.now()}-${outputPath}`,
+              title: job.title || t("untitledVideo"),
+              url: job.url,
+              outputPath,
+              thumbnailUrl: job.thumbnailUrl || "",
+              kind: job.kind,
               createdAt: Date.now(),
             });
           }
+        } else if (ok && outputPath) {
+          const current = useDollytStore.getState();
+          addHistory({
+            id: `${Date.now()}-${outputPath}`,
+            title: current.video?.title || t("untitledVideo"),
+            url: current.url,
+            outputPath,
+            thumbnailUrl: current.video?.thumbnailUrl || "",
+            kind: current.exportFullVideo ? "full" : "clip",
+            createdAt: Date.now(),
+          });
+        }
+        if (wasActive || !job) {
           finishDownload(
-            event.payload.ok,
-            event.payload.message,
-            event.payload.previewPath ?? "",
-            event.payload.outputPath ?? "",
+            ok,
+            message,
+            previewPath ?? "",
+            outputPath ?? "",
           );
         }
       },
@@ -142,7 +180,7 @@ function App() {
       active = false;
       unsubs.forEach((unsubscribe) => unsubscribe());
     };
-  }, [addHistory, finishDownload, setDownloadProgress]);
+  }, [addHistory, finishDownload, finishJob, setActiveJob, setDownloadProgress, updateJob]);
 
   useEffect(() => {
     getSettings()

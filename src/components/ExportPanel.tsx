@@ -4,7 +4,7 @@ import { PrimaryButton } from "./PrimaryButton";
 import { Panel, SettingRow } from "./ui/Panel";
 import { CustomSelect } from "./ui/CustomSelect";
 import { Toggle } from "./Toggle";
-import { presetDisplayName } from "../lib/presetsUi";
+import { presetSelectOptions } from "../lib/presetsUi";
 import { t } from "../i18n";
 
 type Props = {
@@ -43,11 +43,7 @@ export function ExportPanel({
               value={selectedPresetId}
               onChange={onPresetChange}
               className="mono"
-              options={presets.map((p) => ({
-                value: p.id,
-                label: presetDisplayName(p),
-                iconId: p.id,
-              }))}
+              options={presetSelectOptions(presets)}
               ariaLabel={t("exportPresetAria")}
             />
           </SettingRow>

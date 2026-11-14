@@ -6,6 +6,20 @@ export type { VideoInfo };
 
 export type Screen = "home" | "download" | "editor" | "presets" | "settings" | "queue";
 export type DownloadState = "idle" | "loading" | "success" | "error";
+export type ExportJobState = "queued" | "running" | "success" | "error" | "cancelled";
+export type ExportJob = {
+  id: number;
+  url: string;
+  title: string;
+  thumbnailUrl: string;
+  kind: "clip" | "full";
+  stage: string;
+  percent: number;
+  state: ExportJobState;
+  message: string;
+  outputPath: string;
+  previewPath: string;
+};
 export type HistoryEntry = {
   id: string;
   title: string;
@@ -68,6 +82,8 @@ type DollytState = {
   downloadPath: string;
   downloadOutputPath: string;
   history: HistoryEntry[];
+  jobs: ExportJob[];
+  activeJobId: number | null;
   selectedPresetId: string;
   exportFullVideo: boolean;
   setUrl: (url: string) => void;
@@ -87,6 +103,17 @@ type DollytState = {
     outputPath?: string,
   ) => void;
   addHistory: (entry: HistoryEntry) => void;
+  addJob: (job: ExportJob) => void;
+  updateJob: (id: number, patch: Partial<ExportJob>) => void;
+  finishJob: (
+    id: number,
+    ok: boolean,
+    message: string,
+    previewPath?: string,
+    outputPath?: string,
+  ) => void;
+  removeJob: (id: number) => void;
+  setActiveJob: (id: number | null) => void;
   removeHistory: (id: string) => void;
   resetDownload: () => void;
   setSelectedPresetId: (id: string) => void;
@@ -147,6 +174,8 @@ export const useDollytStore = create<DollytState>((set, get) => {
   downloadPath: "",
   downloadOutputPath: "",
   history: readHistory(),
+  jobs: [],
+  activeJobId: null,
   selectedPresetId: "tiktok",
   exportFullVideo: false,
   setUrl: (url) => set({ url }),
@@ -196,7 +225,7 @@ export const useDollytStore = create<DollytState>((set, get) => {
     resetProgress(ok ? 100 : 0);
     set({
       downloadState: ok ? "success" : "error",
-      status,
+      status: ok ? "" : status,
       downloadPath,
       downloadOutputPath,
     });
@@ -216,6 +245,36 @@ export const useDollytStore = create<DollytState>((set, get) => {
       writeHistory(history);
       return { history };
     }),
+  addJob: (job) =>
+    set((state) => ({ jobs: [...state.jobs, job] })),
+  updateJob: (id, patch) =>
+    set((state) => ({
+      jobs: state.jobs.map((job) =>
+        job.id === id ? { ...job, ...patch } : job,
+      ),
+    })),
+  finishJob: (id, ok, message, previewPath = "", outputPath = "") =>
+    set((state) => ({
+      jobs: state.jobs.map((job) =>
+        job.id === id
+          ? {
+              ...job,
+              state: ok ? "success" : message === "annulé" ? "cancelled" : "error",
+              message,
+              previewPath,
+              outputPath,
+              percent: ok ? 100 : job.percent,
+            }
+          : job,
+      ),
+      activeJobId: state.activeJobId === id ? null : state.activeJobId,
+    })),
+  removeJob: (id) =>
+    set((state) => ({
+      jobs: state.jobs.filter((job) => job.id !== id),
+      activeJobId: state.activeJobId === id ? null : state.activeJobId,
+    })),
+  setActiveJob: (id) => set({ activeJobId: id }),
   resetDownload: () => {
     resetProgress(0);
     set({
@@ -230,11 +289,14 @@ export const useDollytStore = create<DollytState>((set, get) => {
   setExportFullVideo: (exportFullVideo) => set({ exportFullVideo }),
   go: (screen) => {
     if (EDITOR_QUARANTINED && screen === "editor") return;
-    set({ screen });
+    set(screen === "home" ? { screen, status: "" } : { screen });
   },
   goHome: () => {
     void releasePreviewCache().catch(() => {});
-    resetProgress(0);
+    const hasActiveJob = get().jobs.some(
+      (job) => job.state === "running" || job.state === "queued",
+    );
+    if (!hasActiveJob) resetProgress(0);
     set({
       screen: "home",
       url: "",

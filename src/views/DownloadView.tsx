@@ -1,8 +1,10 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { SnakeLoader } from "../components/SnakeLoader";
 import { WindowControls } from "../components/WindowChrome";
-import { revealFile } from "../api/dollyt";
+import { cancelJob, revealFile } from "../api/dollyt";
+import { CopyButton } from "../components/CopyButton";
 import { previewSrc } from "../lib/previewSrc";
+import { AudioPreviewPlayer } from "../components/AudioPreviewPlayer";
 import { useDollytStore } from "../store";
 import { backendText, t } from "../i18n";
 
@@ -55,6 +57,14 @@ export function DownloadView() {
   const path = useDollytStore((s) => s.downloadPath);
   const outputPath = useDollytStore((s) => s.downloadOutputPath);
   const message = useDollytStore((s) => s.status);
+  const jobs = useDollytStore((s) => s.jobs);
+  const activeJobId = useDollytStore((s) => s.activeJobId);
+  const queuedJobs = jobs.filter((job) => job.state === "queued");
+  const activeJob = jobs.find(
+    (job) => job.id === activeJobId && job.state === "running",
+  );
+  const shownPercent = activeJob ? activeJob.percent : percent;
+  const shownStage = activeJob?.stage || stage;
   const setRange = useDollytStore((s) => s.setRangeSecs);
   const go = useDollytStore((s) => s.go);
   const goHome = useDollytStore((s) => s.goHome);
@@ -68,6 +78,9 @@ export function DownloadView() {
   };
 
   const videoUrl = useMemo(() => (path ? previewSrc(path) : ""), [path]);
+  const isAudio = /\.(mp3|flac|m4a|ogg|opus|wav|aac)$/i.test(
+    outputPath || path || "",
+  );
 
   function retry() {
     resetDownload();
@@ -76,7 +89,10 @@ export function DownloadView() {
 
   function newClip() {
     setRange(0, 7);
-    resetDownload();
+    const hasActiveJob = useDollytStore
+      .getState()
+      .jobs.some((job) => job.state === "running" || job.state === "queued");
+    if (!hasActiveJob) resetDownload();
     goHome();
   }
 
@@ -106,11 +122,18 @@ export function DownloadView() {
           <section className="download-loading" aria-live="polite">
             <SnakeLoader active />
             <div className="download-loading-title">
-              <span className="download-percent">{percent}%</span>
-              <h1>{stages[stage] ?? t("preparingClip")}</h1>
+              <span className="download-percent">{shownPercent}%</span>
+              <h1>{stages[shownStage] ?? t("preparingClip")}</h1>
             </div>
-            <div className="download-progress" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
-              <span style={{ width: `${percent}%` }} />
+            <div className="download-progress" role="progressbar" aria-valuenow={shownPercent} aria-valuemin={0} aria-valuemax={100}>
+              <span style={{ width: `${shownPercent}%` }} />
+            </div>
+            <div className="download-bg">
+              <button type="button" className="btn btn-sm" onClick={newClip}>
+                <ActionIcon name="scissors" />
+                {t("newClip")}
+              </button>
+              <p className="download-bg-hint">{t("exportContinuesBg")}</p>
             </div>
           </section>
         ) : state === "success" ? (
@@ -140,8 +163,11 @@ export function DownloadView() {
               {openError ? <p className="download-open-error">{backendText(openError)}</p> : null}
             </div>
             {videoUrl ? (
-              <div className="download-preview">
+              <div className={`download-preview${isAudio ? " download-preview--audio" : ""}`}>
                 <p className="download-preview-label">{t("preview")}</p>
+                {isAudio ? (
+                  <AudioPreviewPlayer path={path} />
+                ) : (
                 <video
                   src={videoUrl}
                   controls
@@ -151,6 +177,7 @@ export function DownloadView() {
                   playsInline
                   preload="metadata"
                 />
+                )}
               </div>
             ) : null}
           </section>
@@ -158,6 +185,7 @@ export function DownloadView() {
           <section className="download-error">
             <h1>{t("exportFailed")}</h1>
             <p className="download-sub">{message ? backendText(message) : t("retryHint")}</p>
+            {message ? <CopyButton text={message} className="download-copy" /> : null}
             <div className="download-actions">
               <button type="button" className="btn btn-primary btn-sm" onClick={retry}>
                 <ActionIcon name="refresh" />
@@ -166,6 +194,27 @@ export function DownloadView() {
             </div>
           </section>
         )}
+        {queuedJobs.length > 0 ? (
+          <section className="download-queue" aria-label={t("exportQueue")}>
+            <h2 className="set-heading">{t("exportQueue")}</h2>
+            <ul className="download-queue-list">
+              {queuedJobs.map((job) => (
+                <li key={job.id} className="download-queue-item">
+                  <span className="download-queue-title">
+                    {job.title || job.url}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => void cancelJob(job.id)}
+                  >
+                    {t("cancel")}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </main>
     </div>
   );

@@ -13,6 +13,8 @@ const PRESET_NAMES: Record<string, () => string> = {
   edition: () => t("presetNameEdition"),
   source: () => t("presetNameSource"),
   "quality-max": () => t("presetNameQualityMax"),
+  audio: () => t("presetNameAudio"),
+  "audio-lossless": () => t("presetNameAudioLossless"),
 };
 
 export function presetDisplayName(p: Preset): string {
@@ -21,6 +23,39 @@ export function presetDisplayName(p: Preset): string {
 
 export function presetShortLabel(p: Preset): string {
   return presetDisplayName(p);
+}
+
+export type PresetGroup = "social" | "other" | "audio";
+
+export function presetGroupKey(p: Preset): PresetGroup {
+  if (p.videoCodec === "none") return "audio";
+  return SOCIAL_PRESET_IDS.has(p.id) ? "social" : "other";
+}
+
+export function presetGroupLabel(key: PresetGroup): string {
+  if (key === "social") return t("networks");
+  if (key === "audio") return t("sound");
+  return t("others");
+}
+
+const GROUP_ORDER: Record<PresetGroup, number> = {
+  social: 0,
+  other: 1,
+  audio: 2,
+};
+
+export function presetSelectOptions(presets: Preset[]) {
+  return [...presets]
+    .sort(
+      (a, b) =>
+        GROUP_ORDER[presetGroupKey(a)] - GROUP_ORDER[presetGroupKey(b)],
+    )
+    .map((p) => ({
+      value: p.id,
+      label: presetShortLabel(p),
+      iconId: p.id,
+      group: presetGroupLabel(presetGroupKey(p)),
+    }));
 }
 
 export type PresetBrief = { lead: string; points: string[] };
@@ -59,6 +94,14 @@ function presetBriefs(): Record<string, PresetBrief> {
       lead: t("qualityMaxBrief"),
       points: [t("qualityMaxPoint1"), t("qualityMaxPoint2")],
     },
+    audio: {
+      lead: t("audioBrief"),
+      points: [],
+    },
+    "audio-lossless": {
+      lead: t("audioLosslessBrief"),
+      points: [],
+    },
   };
 }
 
@@ -86,6 +129,8 @@ const PRESET_SUB_KEYS: Record<string, Parameters<typeof t>[0]> = {
   edition: "editionSub",
   source: "sourceSub",
   "quality-max": "qualityMaxSub",
+  audio: "audioSub",
+  "audio-lossless": "audioLosslessSub",
 };
 
 function videoCodecLabel(codec: string): string {
@@ -94,8 +139,32 @@ function videoCodecLabel(codec: string): string {
   return codec;
 }
 
+/** Badge format court : MP4 · H.264, MKV · COPIE, MP3 · 320k, FLAC. */
+export function presetRowFormat(p: Preset): string {
+  const container = p.container.toUpperCase();
+  if (p.videoCodec === "none") {
+    if (p.audioCodec === "flac") return t("lossless");
+    return p.audioBitrateKbps != null ? `${p.audioBitrateKbps}k` : container;
+  }
+  if (p.videoCodec === "copy") {
+    return `${container} · ${t("copy").toUpperCase()}`;
+  }
+  return `${container} · ${videoCodecLabel(p.videoCodec).toUpperCase()}`;
+}
+
 /** Colonne droite : ce que le fichier exporté contient. */
 export function presetRowExportSpec(p: Preset): string {
+  if (p.videoCodec === "none") {
+    const codec =
+      p.audioCodec === "libmp3lame"
+        ? "MP3"
+        : p.audioCodec === "flac"
+          ? "FLAC"
+          : p.audioCodec;
+    const parts = [`.${p.container}`, codec];
+    if (p.audioBitrateKbps != null) parts.push(`${p.audioBitrateKbps} kbps`);
+    return parts.join(" · ");
+  }
   if (p.videoCodec === "copy") {
     return p.id === "quality-max"
       ? `.${p.container} · ${t("copyHq")}`

@@ -6,6 +6,7 @@ export type SelectOption = {
   value: string;
   label: string;
   iconId?: string;
+  group?: string;
 };
 
 type Props = {
@@ -114,8 +115,13 @@ export function CustomSelect({
               maxHeight: menuRect.maxHeight,
             }}
           >
-            {options.map((opt) => (
+            {options.map((opt, i) => (
               <li key={opt.value} role="presentation">
+                {opt.group && options[i - 1]?.group !== opt.group ? (
+                  <div className="custom-select-group" role="presentation">
+                    {opt.group}
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   role="option"

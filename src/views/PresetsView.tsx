@@ -11,6 +11,7 @@ import {
   presetBrief,
   presetDisplayName,
   presetRowExportSpec,
+  presetRowFormat,
   SOCIAL_PRESET_IDS,
 } from "../lib/presetsUi";
 import { t } from "../i18n";
@@ -44,8 +45,11 @@ function PresetPickList({
               {presetDisplayName(p)}
             </span>
           </span>
-          <span className="pick-row-spec mono" title={presetRowExportSpec(p)}>
-            {presetRowExportSpec(p)}
+          <span
+            className="pick-row-format mono"
+            title={presetRowExportSpec(p)}
+          >
+            {presetRowFormat(p)}
           </span>
         </button>
       ))}

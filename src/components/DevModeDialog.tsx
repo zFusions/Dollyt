@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { PrimaryButton } from "./PrimaryButton";
 import { t } from "../i18n";
 
@@ -10,7 +11,7 @@ type Props = {
 export function DevModeDialog({ open, onCancel, onConfirm }: Props) {
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="set-dev-gate" role="presentation">
       <button
         type="button"
@@ -44,6 +45,7 @@ export function DevModeDialog({ open, onCancel, onConfirm }: Props) {
           </PrimaryButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
