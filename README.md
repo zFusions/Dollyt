@@ -32,16 +32,6 @@ Dollyt is a desktop YouTube clip exporter for Windows. Paste a URL, choose a pre
 
 ![Dollyt demo](docs/assets/demo.gif)
 
-## Screenshots
-
-| Home | Presets |
-| --- | --- |
-| ![Home](docs/assets/home-preview.png) | ![Presets](docs/assets/presets-preview.png) |
-
-| Settings | History |
-| --- | --- |
-| ![Settings](docs/assets/settings-preview.png) | ![History](docs/assets/queue-preview.png) |
-
 ## Usage
 
 1. Paste a YouTube URL.
