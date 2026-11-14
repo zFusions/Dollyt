@@ -141,6 +141,7 @@ export function HomeView() {
   function focusUrl() {
     setUrl("");
     setError("");
+    useDollytStore.getState().resetClipFields();
     formRef.current?.querySelector<HTMLInputElement>("#url-field")?.focus();
   }
 

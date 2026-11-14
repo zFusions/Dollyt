@@ -118,6 +118,7 @@ type DollytState = {
   resetDownload: () => void;
   setSelectedPresetId: (id: string) => void;
   setExportFullVideo: (v: boolean) => void;
+  resetClipFields: () => void;
   go: (screen: Screen) => void;
   goHome: () => void;
   goEditor: () => void;
@@ -259,7 +260,12 @@ export const useDollytStore = create<DollytState>((set, get) => {
         job.id === id
           ? {
               ...job,
-              state: ok ? "success" : message === "annulé" ? "cancelled" : "error",
+              state:
+                ok
+                  ? "success"
+                  : message === "annulé" || message === "opération annulée"
+                    ? "cancelled"
+                    : "error",
               message,
               previewPath,
               outputPath,
@@ -287,6 +293,8 @@ export const useDollytStore = create<DollytState>((set, get) => {
   },
   setSelectedPresetId: (selectedPresetId) => set({ selectedPresetId }),
   setExportFullVideo: (exportFullVideo) => set({ exportFullVideo }),
+  resetClipFields: () =>
+    set({ startSecs: 0, endSecs: 7, playheadSecs: 0, exportFullVideo: false }),
   go: (screen) => {
     if (EDITOR_QUARANTINED && screen === "editor") return;
     set(screen === "home" ? { screen, status: "" } : { screen });

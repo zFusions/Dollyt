@@ -47,6 +47,7 @@ export function EditorView() {
   const exportFullVideo = useDollytStore((s) => s.exportFullVideo);
   const setExportFullVideo = useDollytStore((s) => s.setExportFullVideo);
   const goHome = useDollytStore((s) => s.goHome);
+  const resetClipFields = useDollytStore((s) => s.resetClipFields);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const playheadRef = useRef(0);
@@ -400,7 +401,14 @@ export function EditorView() {
     <section className="page editor-page">
       <header className="editor-topbar">
         <h1 className="page-title editor-title">{video.title}</h1>
-        <button type="button" onClick={goHome} className="btn btn-ghost btn-sm shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            resetClipFields();
+            goHome();
+          }}
+          className="btn btn-ghost btn-sm shrink-0"
+        >
           {t("newLink")}
         </button>
       </header>
