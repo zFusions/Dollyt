@@ -25,10 +25,6 @@ pub struct VideoInfo {
     pub preview_fps: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_file_duration_secs: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub width: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub height: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -109,14 +105,6 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
         None => return Err(DollytError::NoMuxedFormat),
     };
     let preview_fps = muxed_fps_for_id(formats, &format_id);
-    let width = value
-        .get("width")
-        .and_then(|v| v.as_u64())
-        .and_then(|v| u32::try_from(v).ok());
-    let height = value
-        .get("height")
-        .and_then(|v| v.as_u64())
-        .and_then(|v| u32::try_from(v).ok());
     let export_format_id = format::pick_download_formats(formats)
         .map(|s| format::to_ytdlp_format(&s))
         .unwrap_or_else(|| format_id.clone());
@@ -129,8 +117,6 @@ pub fn video_info_from_json(value: &Value) -> Result<VideoInfo> {
         export_format_id,
         preview_fps,
         preview_file_duration_secs: None,
-        width,
-        height,
     })
 }
 
@@ -224,9 +210,9 @@ pub fn download_section_cancellable(
     let hi = end_secs + margin_secs;
     let section = format!("*{lo}-{hi}");
     let out = temp_mkv_path();
-    let out_arg = out.to_str().expect("chemin temporaire UTF-8");
+    let out_arg = out.to_string_lossy().into_owned();
     let start = SystemTime::now();
-    let mut args: Vec<&str> = vec!["-f", format_id, "-N", "4", "-o", out_arg];
+    let mut args: Vec<&str> = vec!["-f", format_id, "-N", "4", "-o", out_arg.as_str()];
     if use_sections {
         args.extend(["--download-sections", &section]);
     }

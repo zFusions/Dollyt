@@ -21,7 +21,10 @@ pub fn pick_muxed_format(formats: &[Value]) -> Option<(String, String)> {
         if !is_muxed_streamable(format) {
             continue;
         }
-        let id = format.get("format_id")?.as_str()?.to_string();
+        let Some(id) = format.get("format_id").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let id = id.to_string();
         let height = format.get("height").and_then(|v| v.as_u64()).unwrap_or(360);
         match &best {
             Some((h, _, _)) if *h <= height => {}
@@ -251,6 +254,19 @@ mod tests {
         let formats = value["formats"].as_array().expect("formats");
         let (id, _) = pick_muxed_format(formats).expect("muxed");
         assert_eq!(id, "18");
+    }
+
+    #[test]
+    fn muxed_pick_skips_entries_without_format_id() {
+        let value: serde_json::Value = serde_json::json!({
+            "formats": [
+                {"vcodec": "h264", "acodec": "aac", "protocol": "https", "height": 720, "url": "https://x/1"},
+                {"format_id": "22", "vcodec": "h264", "acodec": "aac", "protocol": "https", "height": 360, "url": "https://x/2"}
+            ]
+        });
+        let formats = value["formats"].as_array().expect("formats");
+        let (id, _) = pick_muxed_format(formats).expect("muxed");
+        assert_eq!(id, "22");
     }
 
     #[test]

@@ -56,7 +56,7 @@ pub fn filmstrip_for_view(
         }
     }
     let pattern = cache_dir.join("f%03d.jpg");
-    let pattern_str = pattern.to_str().expect("chemin UTF-8");
+    let pattern_str = pattern.to_string_lossy();
     let ss = format!("{file_start:.3}");
     let dur = format!("{span:.6}");
     let vf = format!("fps={count}/{dur},scale=-2:{FRAME_HEIGHT}");
@@ -78,7 +78,7 @@ pub fn filmstrip_for_view(
         &frames_s,
         "-q:v",
         "4",
-        pattern_str,
+        pattern_str.as_ref(),
     ])?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -127,7 +127,7 @@ pub fn filmstrip_master(
     }
     fs::create_dir_all(&cache_dir)?;
     let pattern = cache_dir.join("m%04d.jpg");
-    let pattern_str = pattern.to_str().expect("chemin UTF-8");
+    let pattern_str = pattern.to_string_lossy();
     let dur = format!("{span:.3}");
     let vf = format!("fps={count}/{dur},scale=-2:{FRAME_HEIGHT}");
     let frames_s = count.to_string();
@@ -146,7 +146,7 @@ pub fn filmstrip_master(
         &frames_s,
         "-q:v",
         "4",
-        pattern_str,
+        pattern_str.as_ref(),
     ])?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

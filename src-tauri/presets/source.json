@@ -12,5 +12,5 @@
   "audioBitrateKbps": null,
   "videoMaxBitrateKbps": null,
   "nameTemplate": "{titre}_{debut}-{fin}",
-  "description": "MKV en copie directe, sans ré-encodage. Rapide, fichiers souvent plus lourds."
+  "description": "MKV en copie directe, sans ré-encodage. Rapide, fichiers souvent plus lourds. Le début du clip peut être décalé jusqu’à l’image clé la plus proche."
 }

@@ -4,7 +4,6 @@ import {
   getSettings,
   listPresets,
   loadVideo,
-  probeVideoSize,
   startCutJob,
   type Preset,
 } from "../api/dollyt";
@@ -40,28 +39,7 @@ export function HomeView() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [probeSize, setProbeSize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-  const probeSeq = useRef(0);
   const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    const invalid = validateYoutubeUrl(url);
-    const target = invalid ? "" : normalizeYoutubeUrl(url);
-    if (!isTauri() || !target) {
-      setProbeSize(null);
-      return;
-    }
-    const seq = ++probeSeq.current;
-    const timer = setTimeout(() => {
-      void probeVideoSize(target).then((size) => {
-        if (probeSeq.current === seq) setProbeSize(size);
-      });
-    }, 700);
-    return () => clearTimeout(timer);
-  }, [url]);
 
   useEffect(() => {
     listPresets()
@@ -173,12 +151,6 @@ export function HomeView() {
   function submitDownload() {
     formRef.current?.requestSubmit();
   }
-
-  const selectedPreset = presets.find((p) => p.id === selectedPresetId);
-  const dimsW = probeSize?.width ?? 0;
-  const dimsH = probeSize?.height ?? 0;
-  const showCropWarning =
-    selectedPreset?.crop === "center" && dimsW > 0 && dimsH > 0 && dimsW >= dimsH;
 
   return (
     <div className="home-hero">
@@ -297,11 +269,6 @@ export function HomeView() {
                       ariaLabel={t("exportPresetAria")}
                       options={presetSelectOptions(presets)}
                     />
-                    {showCropWarning ? (
-                      <span className="set-hint home-crop-warn">
-                        {t("cropCenterWarn")}
-                      </span>
-                    ) : null}
                   </label>
                   <div className="home-mode-field">
                     <span>{t("range")}</span>
