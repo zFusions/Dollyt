@@ -9,6 +9,37 @@ type UpdateDialogProps = {
   onIgnore: () => void;
 };
 
+type Block =
+  | { kind: "h2"; text: string }
+  | { kind: "h3"; text: string }
+  | { kind: "p"; text: string }
+  | { kind: "li"; text: string };
+
+function inlineMd(text: string) {
+  return text
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1");
+}
+
+function parseBody(body: string): Block[] {
+  const blocks: Block[] = [];
+  for (const raw of body.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("## ")) {
+      blocks.push({ kind: "h2", text: inlineMd(line.slice(3)) });
+    } else if (line.startsWith("### ")) {
+      blocks.push({ kind: "h3", text: inlineMd(line.slice(4)) });
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      blocks.push({ kind: "li", text: inlineMd(line.slice(2)) });
+    } else {
+      blocks.push({ kind: "p", text: inlineMd(line) });
+    }
+  }
+  return blocks;
+}
+
 export function UpdateDialog({
   version,
   body,
@@ -16,6 +47,7 @@ export function UpdateDialog({
   onIgnore,
 }: UpdateDialogProps) {
   const [installing, setInstalling] = useState(false);
+  const blocks = body ? parseBody(body) : [];
 
   async function handleInstall() {
     setInstalling(true);
@@ -29,11 +61,42 @@ export function UpdateDialog({
   return (
     <div className="set-dev-gate" role="presentation">
       <div className="set-dev-gate-card">
-        <h2 className="set-dev-gate-title">{t("updateAvailable")}</h2>
-        <p className="meta set-dev-gate-lead">
-          {t("updateAvailableSub")} {version}
-        </p>
-        {body ? <p className="meta set-dev-gate-lead">{body}</p> : null}
+        <h2 className="set-dev-gate-title">
+          {t("updateAvailable")} — v{version}
+        </h2>
+        <p className="meta set-dev-gate-lead">{t("updateAvailableSub")}</p>
+        {blocks.length > 0 ? (
+          <div className="update-notes">
+            {blocks.map((block, i) => {
+              if (block.kind === "h2") {
+                return (
+                  <h3 key={i} className="update-notes-h2">
+                    {block.text}
+                  </h3>
+                );
+              }
+              if (block.kind === "h3") {
+                return (
+                  <h4 key={i} className="update-notes-h3">
+                    {block.text}
+                  </h4>
+                );
+              }
+              if (block.kind === "li") {
+                return (
+                  <p key={i} className="update-notes-li">
+                    <span aria-hidden>•</span> {block.text}
+                  </p>
+                );
+              }
+              return (
+                <p key={i} className="update-notes-p">
+                  {block.text}
+                </p>
+              );
+            })}
+          </div>
+        ) : null}
         <div className="set-dev-gate-actions">
           <PrimaryButton
             variant="default"

@@ -554,6 +554,51 @@
     justify-content: flex-end;
     gap: 8px;
   }
+  .update-notes {
+    margin: 0 0 18px;
+    padding: 12px 14px;
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--line);
+    max-height: 40vh;
+    overflow-y: auto;
+    text-align: left;
+  }
+  .update-notes-h2 {
+    margin: 10px 0 4px;
+    font-size: var(--fs-body, 13px);
+    font-weight: 600;
+    color: var(--fg-1);
+  }
+  .update-notes-h2:first-child {
+    margin-top: 0;
+  }
+  .update-notes-h3 {
+    margin: 10px 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-2);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .update-notes-p {
+    margin: 2px 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--fg-2);
+  }
+  .update-notes-li {
+    display: flex;
+    gap: 8px;
+    margin: 3px 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--fg-2);
+  }
+  .update-notes-li span {
+    color: var(--fg-3);
+    flex-shrink: 0;
+  }
 
   .unsaved-guard-card {
     text-align: center;
