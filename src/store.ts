@@ -166,7 +166,7 @@ export const useDollytStore = create<DollytState>((set, get) => {
   video: null,
   storyboard: null,
   startSecs: 0,
-  endSecs: 7,
+  endSecs: 5,
   playheadSecs: 0,
   status: "",
   jobPercent: 0,
@@ -294,7 +294,7 @@ export const useDollytStore = create<DollytState>((set, get) => {
   setSelectedPresetId: (selectedPresetId) => set({ selectedPresetId }),
   setExportFullVideo: (exportFullVideo) => set({ exportFullVideo }),
   resetClipFields: () =>
-    set({ startSecs: 0, endSecs: 7, playheadSecs: 0, exportFullVideo: false }),
+    set({ startSecs: 0, endSecs: 5, playheadSecs: 0, exportFullVideo: false }),
   go: (screen) => {
     if (EDITOR_QUARANTINED && screen === "editor") return;
     set(screen === "home" ? { screen, status: "" } : { screen });
