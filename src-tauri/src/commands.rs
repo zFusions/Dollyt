@@ -153,6 +153,7 @@ pub fn start_local_preview(
             start,
             end,
             if full { 0.0 } else { 1.0 },
+            !full,
             cancel.as_ref(),
             &slot,
             Some(on_progress),

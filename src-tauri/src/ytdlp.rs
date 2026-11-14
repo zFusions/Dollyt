@@ -172,6 +172,7 @@ pub fn download_section(
         start_secs,
         end_secs,
         margin_secs,
+        true,
         &cancel,
         &slot,
         None,
@@ -185,6 +186,7 @@ pub fn download_section_cancellable(
     start_secs: f64,
     end_secs: f64,
     margin_secs: f64,
+    use_sections: bool,
     cancel: &AtomicBool,
     child_slot: &Arc<Mutex<Option<Child>>>,
     on_progress: Option<ProgressFn>,
@@ -210,16 +212,10 @@ pub fn download_section_cancellable(
     let out = temp_mkv_path();
     let out_arg = out.to_str().expect("chemin temporaire UTF-8");
     let start = SystemTime::now();
-    let mut args: Vec<&str> = vec![
-        "-f",
-        format_id,
-        "-N",
-        "4",
-        "--download-sections",
-        &section,
-        "-o",
-        out_arg,
-    ];
+    let mut args: Vec<&str> = vec!["-f", format_id, "-N", "4", "-o", out_arg];
+    if use_sections {
+        args.extend(["--download-sections", &section]);
+    }
     if format_id.contains('+') {
         args.extend(["--merge-output-format", "mkv"]);
     }
@@ -239,19 +235,27 @@ pub fn download_section_cancellable(
     if let Ok(mut guard) = child_slot.lock() {
         *guard = Some(child);
     }
-    // FFmpegFD (sections) n'émet pas de % : progression synthétique bornée.
+    // Sans sections, yt-dlp émet un vrai % via stderr ; avec sections
+    // (FFmpegFD) il n'en émet pas, d'où la progression synthétique bornée
+    // qui cède la place au vrai % dès qu'il arrive.
     let tick_stop = Arc::new(AtomicBool::new(false));
     if let Some(cb) = on_progress.clone() {
         let started = start;
         let stop = Arc::clone(&tick_stop);
+        let pct_bg = Arc::clone(&pct);
         thread::spawn(move || {
             loop {
                 thread::sleep(Duration::from_millis(400));
                 if stop.load(Ordering::SeqCst) {
                     break;
                 }
-                let elapsed = started.elapsed().unwrap_or_default().as_secs_f64();
-                let raw = (100.0 * (1.0 - (-elapsed / 45.0).exp())).min(96.0) as u8;
+                let real = pct_bg.load(Ordering::Relaxed);
+                let raw = if real > 0 {
+                    real
+                } else {
+                    let elapsed = started.elapsed().unwrap_or_default().as_secs_f64();
+                    (100.0 * (1.0 - (-elapsed / 45.0).exp())).min(96.0) as u8
+                };
                 cb(raw);
             }
         });
@@ -267,7 +271,7 @@ pub fn download_section_cancellable(
     Ok(DownloadResult {
         path: out.to_string_lossy().into_owned(),
         elapsed_ms,
-        section_lo_secs: lo,
+        section_lo_secs: if use_sections { lo } else { 0.0 },
     })
 }
 

@@ -311,12 +311,14 @@ fn run_cut_job(
         let mapped = 20u8.saturating_add(((raw as u16).saturating_mul(48) / 100) as u8);
         let _ = emit(&app_dl, job_id, "download", mapped);
     });
+    let whole_video = start_secs <= 0.5 && end_secs >= info.duration_secs - 0.5;
     let download = ytdlp::download_section_cancellable(
         &url,
         &dl_format,
         start_secs,
         end_secs,
         3.0,
+        !whole_video,
         cancel,
         child_slot,
         Some(on_progress),
