@@ -16,6 +16,12 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
+      - name: Cache runtime tools
+        uses: actions/cache@v4
+        with:
+          path: installer/runtime-tools
+          key: runtime-tools-${{ hashFiles('scripts/stage-runtime-tools.ps1') }}
+      - run: npm run stage:runtime-tools
       - run: node --test scripts/*.test.mjs
       - run: npm audit --audit-level=high
       - run: npm run build
