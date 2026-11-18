@@ -1,6 +1,6 @@
 # Infra Dollyt (hors interface)
 
-État au 2026-11-18 : release publique v1.2.1; le patch v1.2.2 en préparation met à jour FFmpeg pour les exports H.264. L'éditeur timeline existe mais est **quarantiné** (`src/editorAvailability.ts` → `EDITOR_QUARANTINED = true`).
+État au 2026-11-18 : release publique v1.2.2; FFmpeg inclut `libx264`, les téléchargements d'extraits utilisent la progression yt-dlp et l'updater réutilise la version déjà vérifiée. L'éditeur timeline existe mais est **quarantiné** (`src/editorAvailability.ts` → `EDITOR_QUARANTINED = true`).
 
 ## Rust (`src-tauri/src/`)
 
