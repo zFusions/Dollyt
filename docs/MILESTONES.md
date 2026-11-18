@@ -1,6 +1,6 @@
 # Jalons
 
-État courant au 2026-11-18 : v1.2.1 est publiée. Le patch de fiabilité en préparation est la v1.2.2 : encodeur FFmpeg compatible avec les presets MP4, progression réelle des téléchargements d'extraits et installation de mise à jour sans seconde vérification réseau.
+État courant au 2026-11-18 : v1.2.2 est publiée. Cette version corrige l'encodeur FFmpeg des presets MP4, capte la progression réelle de yt-dlp et supprime la seconde vérification réseau lors de l'installation d'une mise à jour.
 
 Le socle documentaire est validé. Le plan M0 est dans [plans/M0.md](plans/M0.md) ; l'exécution commence après validation de ce plan.
 
