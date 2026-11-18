@@ -41,6 +41,7 @@ fn ytdlp_command(args: &[&str]) -> Result<Command> {
 
 fn push_ytdlp_defaults(cmd: &mut Command) {
     cmd.arg("--ignore-config");
+    push_ytdlp_network_defaults(cmd);
     let Some(tools) = bins::tools() else {
         return;
     };
@@ -90,6 +91,19 @@ fn push_ytdlp_defaults(cmd: &mut Command) {
     }
 }
 
+fn push_ytdlp_network_defaults(cmd: &mut Command) {
+    cmd.args([
+        "--socket-timeout",
+        "30",
+        "--retries",
+        "3",
+        "--fragment-retries",
+        "3",
+        "--extractor-retries",
+        "2",
+    ]);
+}
+
 pub fn run_ffmpeg(args: &[&str]) -> Result<Output> {
     let tools = tool_paths()?;
     run_exe(&tools.ffmpeg, args, false)
@@ -132,4 +146,33 @@ pub(crate) fn kill_process_tree(pid: u32) {
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     let _ = cmd.status();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ytdlp_network_calls_have_bounded_timeouts_and_retries() {
+        let mut command = Command::new("yt-dlp");
+        push_ytdlp_network_defaults(&mut command);
+        let args = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            [
+                "--socket-timeout",
+                "30",
+                "--retries",
+                "3",
+                "--fragment-retries",
+                "3",
+                "--extractor-retries",
+                "2",
+            ]
+        );
+    }
 }

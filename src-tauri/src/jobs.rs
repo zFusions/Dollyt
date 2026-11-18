@@ -78,6 +78,32 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+fn claim_next_job(state: &JobsState) -> Option<JobRequest> {
+    let mut queue = lock(&state.queue);
+    let request = queue.items.pop_front()?;
+    let mut active = lock(&state.active);
+    *active = Some(ActiveJob {
+        job_id: request.job_id,
+        cancel: Arc::clone(&request.cancel),
+        child: Arc::clone(&request.child),
+    });
+    Some(request)
+}
+
+fn request_active_cancel(state: &JobsState, job_id: Option<u64>) -> Option<u64> {
+    let mut active = lock(&state.active);
+    let job = active.as_mut()?;
+    if job_id.is_some_and(|id| id != job.job_id) {
+        return None;
+    }
+    let cancelled_id = job.job_id;
+    job.cancel.store(true, Ordering::SeqCst);
+    if let Some(child) = job.child.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        process::kill_process_tree(child.id());
+    }
+    Some(cancelled_id)
+}
+
 #[tauri::command]
 pub fn cancel_job(
     app: AppHandle,
@@ -107,32 +133,10 @@ pub fn cancel_job(
             return Ok(());
         }
     }
-    let mut guard = lock(&state.active);
-    let Some(job) = guard.as_mut() else {
-        return Ok(());
-    };
-    if let Some(id) = job_id
-        && job.job_id != id
-    {
-        return Ok(());
+    if request_active_cancel(&state, job_id).is_some() {
+        // The worker owns the single terminal event for active jobs.
+        log::log_line("annulation du job actif demandée");
     }
-    let cancelled_id = job.job_id;
-    job.cancel.store(true, Ordering::SeqCst);
-    if let Some(child) = job.child.lock().unwrap_or_else(|e| e.into_inner()).take() {
-        process::kill_process_tree(child.id());
-    }
-    drop(guard);
-    let _ = app.emit(
-        "job-finished",
-        JobFinished {
-            job_id: cancelled_id,
-            ok: false,
-            message: "annulé".into(),
-            output_path: None,
-            preview_path: None,
-        },
-    );
-    log::log_line("job annulé");
     Ok(())
 }
 
@@ -180,10 +184,7 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
         queue: &state.queue,
     };
     loop {
-        let request = {
-            let mut queue = lock(&state.queue);
-            queue.items.pop_front()
-        };
+        let request = claim_next_job(&state);
         let Some(request) = request else {
             let mut queue = lock(&state.queue);
             if queue.items.is_empty() {
@@ -192,14 +193,6 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
             }
             continue;
         };
-        {
-            let mut active = lock(&state.active);
-            *active = Some(ActiveJob {
-                job_id: request.job_id,
-                cancel: Arc::clone(&request.cancel),
-                child: Arc::clone(&request.child),
-            });
-        }
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             run_cut_job(
                 &app,
@@ -283,6 +276,7 @@ fn run_cut_job(
     if app_settings.export_dir.trim().is_empty() {
         return Err("Choisis d’abord un dossier de sortie dans Paramètres.".into());
     }
+    emit_progress(app, job_id, "metadata", None)?;
     let meta = ytdlp::fetch_metadata_json(&url).map_err(|e| e.to_string())?;
     let info = ytdlp::video_info_from_json(&meta).map_err(|e| e.to_string())?;
     if end_secs > info.duration_secs + 0.5 {
@@ -307,9 +301,11 @@ fn run_cut_job(
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
         let _ = emit_progress(&app_dl, job_id, "download", map_download_percent(raw));
     });
-    // yt-dlp's FFmpeg section downloader has no byte-progress events. Download
-    // with yt-dlp's native downloader and trim locally so the UI gets real %.
-    let use_sections = false;
+    // Section downloads keep bandwidth proportional to the clip but report
+    // no byte progress (the UI stays indeterminate). A full download reports
+    // real progress, so it is kept only when the clip is nearly the whole
+    // video and section mode would save almost nothing.
+    let use_sections = should_use_sections(end_secs - start_secs, info.duration_secs);
     let download = ytdlp::download_section_cancellable(
         &url,
         &dl_format,
@@ -368,6 +364,10 @@ fn run_cut_job(
     Ok((cut.path, preview_path))
 }
 
+fn should_use_sections(clip_span_secs: f64, video_duration_secs: f64) -> bool {
+    clip_span_secs * 4.0 < video_duration_secs * 3.0
+}
+
 fn download_fallback_format(preset_id: &str, format_id: &str) -> String {
     if preset_id == "quality-max" && format_id.is_empty() {
         "bestvideo+bestaudio/best".into()
@@ -406,6 +406,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn claimed_job_is_visible_to_cancellation_before_worker_starts() {
+        let state = JobsState::default();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let child = Arc::new(Mutex::new(None));
+        lock(&state.queue).items.push_back(JobRequest {
+            job_id: 7,
+            raw_url: "https://www.youtube.com/watch?v=test".into(),
+            format_id: "18".into(),
+            start_secs: 0.0,
+            end_secs: 5.0,
+            preset_id: "youtube".into(),
+            cancel: Arc::clone(&cancel),
+            child: Arc::clone(&child),
+        });
+
+        let request = claim_next_job(&state).expect("queued job should be claimed");
+        let active = lock(&state.active);
+        assert_eq!(active.as_ref().map(|job| job.job_id), Some(request.job_id));
+        assert!(Arc::ptr_eq(
+            &active.as_ref().unwrap().cancel,
+            &request.cancel
+        ));
+    }
+
+    #[test]
+    fn active_cancel_is_idempotent_and_targets_only_the_requested_job() {
+        let state = JobsState::default();
+        let cancel = Arc::new(AtomicBool::new(false));
+        lock(&state.active).replace(ActiveJob {
+            job_id: 11,
+            cancel: Arc::clone(&cancel),
+            child: Arc::new(Mutex::new(None)),
+        });
+
+        assert_eq!(request_active_cancel(&state, Some(99)), None);
+        assert!(!cancel.load(Ordering::SeqCst));
+        assert_eq!(request_active_cancel(&state, Some(11)), Some(11));
+        assert!(cancel.load(Ordering::SeqCst));
+        assert_eq!(request_active_cancel(&state, Some(11)), Some(11));
+    }
+
+    #[test]
     fn quality_max_uses_a_valid_selector_when_no_explicit_format_is_available() {
         assert_eq!(
             download_fallback_format("quality-max", ""),
@@ -416,6 +458,16 @@ mod tests {
     #[test]
     fn other_presets_keep_their_existing_format_fallback() {
         assert_eq!(download_fallback_format("source", "18"), "18");
+    }
+
+    #[test]
+    fn clips_download_only_their_section_unless_they_cover_the_video() {
+        assert!(should_use_sections(50.0, 600.0));
+        assert!(should_use_sections(300.0, 600.0));
+        assert!(!should_use_sections(600.0, 600.0));
+        assert!(!should_use_sections(590.0, 600.0));
+        assert!(!should_use_sections(450.0, 600.0));
+        assert!(!should_use_sections(50.0, 51.0));
     }
 
     #[test]

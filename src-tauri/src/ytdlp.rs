@@ -3,15 +3,59 @@ use crate::format;
 use crate::process;
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::VecDeque;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 pub type ProgressFn = Arc<dyn Fn(Option<u8>) + Send + Sync>;
+
+const METADATA_CACHE_TTL: Duration = Duration::from_secs(5 * 60);
+const METADATA_CACHE_CAPACITY: usize = 8;
+
+struct MetadataCacheEntry {
+    url: String,
+    value: Value,
+    fetched_at: Instant,
+}
+
+#[derive(Default)]
+struct MetadataCache {
+    entries: VecDeque<MetadataCacheEntry>,
+}
+
+impl MetadataCache {
+    fn get(&mut self, url: &str, now: Instant) -> Option<Value> {
+        let index = self.entries.iter().position(|entry| entry.url == url)?;
+        if now.saturating_duration_since(self.entries[index].fetched_at) >= METADATA_CACHE_TTL {
+            self.entries.remove(index);
+            return None;
+        }
+        Some(self.entries[index].value.clone())
+    }
+
+    fn insert(&mut self, url: impl Into<String>, value: Value, now: Instant) {
+        let url = url.into();
+        self.entries.retain(|entry| entry.url != url);
+        self.entries.push_back(MetadataCacheEntry {
+            url,
+            value,
+            fetched_at: now,
+        });
+        while self.entries.len() > METADATA_CACHE_CAPACITY {
+            self.entries.pop_front();
+        }
+    }
+}
+
+fn metadata_cache() -> &'static Mutex<MetadataCache> {
+    static CACHE: OnceLock<Mutex<MetadataCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(MetadataCache::default()))
+}
 
 struct TemporaryDownloadGuard {
     path: PathBuf,
@@ -62,6 +106,14 @@ pub struct DownloadResult {
 }
 
 pub fn fetch_metadata_json(url: &str) -> Result<Value> {
+    if let Some(value) = metadata_cache()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .get(url, Instant::now())
+    {
+        crate::log::log_line("métadonnées vidéo réutilisées depuis le cache local");
+        return Ok(value);
+    }
     let output = process::run_ytdlp(&["-J", url])?;
     log_stderr_lines(&output.stderr);
     if !output.status.success() {
@@ -75,6 +127,10 @@ pub fn fetch_metadata_json(url: &str) -> Result<Value> {
             &String::from_utf8_lossy(&output.stderr),
         )));
     }
+    metadata_cache()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .insert(url, value.clone(), Instant::now());
     Ok(value)
 }
 
@@ -498,6 +554,51 @@ fn temp_mkv_path() -> PathBuf {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn metadata_cache_reuses_recent_entries_and_expires_old_ones() {
+        let mut cache = MetadataCache::default();
+        let now = Instant::now();
+        let value = serde_json::json!({ "title": "cached" });
+        cache.insert("https://www.youtube.com/watch?v=test", value.clone(), now);
+
+        assert_eq!(
+            cache.get(
+                "https://www.youtube.com/watch?v=test",
+                now + Duration::from_secs(60),
+            ),
+            Some(value)
+        );
+        assert_eq!(
+            cache.get(
+                "https://www.youtube.com/watch?v=test",
+                now + METADATA_CACHE_TTL,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn metadata_cache_evicts_oldest_entry_when_full() {
+        let mut cache = MetadataCache::default();
+        let now = Instant::now();
+        for index in 0..=METADATA_CACHE_CAPACITY {
+            cache.insert(
+                format!("https://www.youtube.com/watch?v={index}"),
+                serde_json::json!({ "id": index }),
+                now + Duration::from_secs(index as u64),
+            );
+        }
+
+        assert_eq!(cache.entries.len(), METADATA_CACHE_CAPACITY);
+        assert_eq!(
+            cache.get(
+                "https://www.youtube.com/watch?v=0",
+                now + Duration::from_secs(METADATA_CACHE_CAPACITY as u64),
+            ),
+            None
+        );
+    }
 
     #[test]
     fn picks_format_18_first() {
