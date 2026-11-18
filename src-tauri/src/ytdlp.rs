@@ -200,29 +200,6 @@ fn muxed_fps_for_id(formats: &[Value], format_id: &str) -> f64 {
         .clamp(1.0, 120.0)
 }
 
-#[cfg(test)]
-pub fn download_section(
-    url: &str,
-    format_id: &str,
-    start_secs: f64,
-    end_secs: f64,
-    margin_secs: f64,
-) -> Result<DownloadResult> {
-    let cancel = AtomicBool::new(false);
-    let slot = Arc::new(Mutex::new(None::<Child>));
-    download_section_cancellable(
-        url,
-        format_id,
-        start_secs,
-        end_secs,
-        margin_secs,
-        true,
-        &cancel,
-        &slot,
-        None,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn download_section_cancellable(
     url: &str,
@@ -279,13 +256,21 @@ pub fn download_section_cancellable(
         }
 
         let mut child = process::spawn_ytdlp(args)?;
+        let stdout_reader = child.stdout.take().map(|stdout| {
+            let pct_bg = Arc::clone(&pct);
+            let has_progress_bg = Arc::clone(&has_progress);
+            thread::spawn(move || read_ytdlp_progress(stdout, pct_bg, has_progress_bg))
+        });
         let stderr_reader = child.stderr.take().map(|stderr| {
             let pct_bg = Arc::clone(&pct);
             let has_progress_bg = Arc::clone(&has_progress);
             let tail_bg = Arc::clone(&stderr_tail);
             thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg, has_progress_bg, tail_bg))
         });
-        let mut reader = stderr_reader;
+        let mut readers = [stdout_reader, stderr_reader]
+            .into_iter()
+            .flatten()
+            .collect();
         *child_slot
             .lock()
             .map_err(|_| DollytError::YtdlpFailed("verrou job".into()))? = Some(child);
@@ -298,7 +283,7 @@ pub fn download_section_cancellable(
             &pct,
             &has_progress,
             Arc::clone(&stderr_tail),
-            &mut reader,
+            &mut readers,
             on_progress.clone(),
         )
     })?;
@@ -370,12 +355,41 @@ fn read_ytdlp_stderr(
     }
 }
 
+fn read_ytdlp_progress(
+    stdout: std::process::ChildStdout,
+    pct: Arc<AtomicU8>,
+    has_progress: Arc<AtomicBool>,
+) {
+    let reader = BufReader::new(stdout);
+    for line in reader.lines().map_while(|line| line.ok()) {
+        if let Some(value) = parse_ytdlp_percent(&line) {
+            pct.store(value, Ordering::Relaxed);
+            has_progress.store(true, Ordering::Relaxed);
+            crate::log::log_line(&format!("yt-dlp: {}", line.trim()));
+        }
+    }
+}
+
 fn parse_ytdlp_percent(line: &str) -> Option<u8> {
-    let rest = line.trim().strip_prefix("download:")?;
-    let digits: String = rest
+    let line = line.trim();
+    let rest = if let Some(value) = line.strip_prefix("download:") {
+        value.trim_start()
+    } else if let Some(value) = line.strip_prefix("[download]") {
+        value.trim_start()
+    } else {
+        line
+    };
+    if !rest
         .chars()
-        .filter(|c| c.is_ascii_digit() || *c == '.')
-        .collect();
+        .next()
+        .is_some_and(|character| character.is_ascii_digit() || character == '.')
+    {
+        return None;
+    }
+    let before_percent = rest.split_once('%')?.0.trim_end();
+    let digits = before_percent
+        .rsplit(|character: char| !(character.is_ascii_digit() || character == '.'))
+        .next()?;
     digits
         .parse::<f32>()
         .ok()
@@ -388,7 +402,7 @@ fn wait_child_slot(
     pct: &AtomicU8,
     has_progress: &AtomicBool,
     stderr_tail: Arc<Mutex<Vec<String>>>,
-    stderr_reader: &mut Option<thread::JoinHandle<()>>,
+    readers: &mut Vec<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
 ) -> Result<()> {
     let mut last_pct = None;
@@ -399,7 +413,7 @@ fn wait_child_slot(
             {
                 process::kill_process_tree(child.id());
             }
-            join_stderr_reader(stderr_reader);
+            join_output_readers(readers);
             return Err(DollytError::Cancelled);
         }
         let status = {
@@ -428,12 +442,20 @@ fn wait_child_slot(
             None => std::thread::sleep(Duration::from_millis(100)),
             Some(status) if status.success() => {
                 let _ = child_slot.lock().map(|mut g| g.take());
-                join_stderr_reader(stderr_reader);
+                join_output_readers(readers);
+                if let Some(cb) = &on_progress
+                    && has_progress.load(Ordering::Relaxed)
+                {
+                    let final_pct = pct.load(Ordering::Relaxed);
+                    if last_pct != Some(final_pct) {
+                        cb(Some(final_pct));
+                    }
+                }
                 return Ok(());
             }
             Some(_) => {
                 let _ = child_slot.lock().map(|mut g| g.take());
-                join_stderr_reader(stderr_reader);
+                join_output_readers(readers);
                 let detail = stderr_tail
                     .lock()
                     .ok()
@@ -452,9 +474,11 @@ fn wait_child_slot(
     }
 }
 
-fn join_stderr_reader(reader: &mut Option<thread::JoinHandle<()>>) {
-    if reader.take().is_some_and(|handle| handle.join().is_err()) {
-        crate::log::log_line("le lecteur des logs yt-dlp s'est arrêté anormalement");
+fn join_output_readers(readers: &mut Vec<thread::JoinHandle<()>>) {
+    for reader in readers.drain(..) {
+        if reader.join().is_err() {
+            crate::log::log_line("un lecteur de sortie yt-dlp s'est arrêté anormalement");
+        }
     }
 }
 
@@ -483,6 +507,18 @@ mod tests {
         let (id, url) = format::pick_muxed_format(formats).expect("muxed");
         assert_eq!(id, "18");
         assert!(url.starts_with("https://"));
+    }
+
+    #[test]
+    fn parses_download_progress_percent_template() {
+        assert_eq!(parse_ytdlp_percent("download: 5.0%"), Some(5));
+        assert_eq!(parse_ytdlp_percent("download:100.0%"), Some(100));
+        assert_eq!(parse_ytdlp_percent("  5.0%"), Some(5));
+        assert_eq!(parse_ytdlp_percent("[download] 5.0% of 20 MiB"), Some(5));
+        assert_eq!(
+            parse_ytdlp_percent("[download] Destination: video.mp4"),
+            None
+        );
     }
 
     #[test]
@@ -550,7 +586,34 @@ mod tests {
         let info =
             video_info_from_json(&fetch_metadata_json(url).expect("métadonnées")).expect("infos");
         assert_eq!(info.format_id, "18");
-        let dl = download_section(url, &info.format_id, 5.0, 12.0, 3.0).expect("téléchargement");
+        let progress_values = Arc::new(Mutex::new(Vec::new()));
+        let progress_sink = Arc::clone(&progress_values);
+        let on_progress: ProgressFn = Arc::new(move |percent| {
+            if let Some(percent) = percent {
+                progress_sink.lock().unwrap().push(percent);
+            }
+        });
+        let cancel = AtomicBool::new(false);
+        let child_slot = Arc::new(Mutex::new(None));
+        let dl = download_section_cancellable(
+            url,
+            &info.format_id,
+            5.0,
+            12.0,
+            3.0,
+            false,
+            &cancel,
+            &child_slot,
+            Some(on_progress),
+        )
+        .expect("téléchargement");
+        let progress_values = progress_values.lock().unwrap();
+        assert!(
+            !progress_values.is_empty(),
+            "le téléchargement doit publier un pourcentage"
+        );
+        assert!(progress_values.iter().all(|percent| *percent <= 100));
+        drop(progress_values);
         let cut = crate::ffmpeg::cut_exact_section(&dl.path, 5.0, 12.0, dl.section_lo_secs)
             .expect("découpe");
         assert!((cut.output_duration_secs - 7.0).abs() < 0.75);

@@ -8,9 +8,10 @@ use std::time::Duration;
 const PINNED_YTDLP_TAG: &str = "2026.10.26";
 const PINNED_YTDLP_EXE_SHA256: &str =
     "f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d";
-const PINNED_FFMPEG_ARCHIVE_URL: &str = "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-12-15-40/ffmpeg-n8.1.3-35-gf1acb0a266-win64-lgpl-8.1.zip";
+const PINNED_FFMPEG_BUILD: &str = "ffmpeg-n8.1.3-35-gf1acb0a266-win64-gpl-8.1";
+const PINNED_FFMPEG_ARCHIVE_URL: &str = "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-12-15-40/ffmpeg-n8.1.3-35-gf1acb0a266-win64-gpl-8.1.zip";
 const PINNED_FFMPEG_ARCHIVE_SHA256: &str =
-    "f8cd2e3a9570cc0101876569f21f130f7741cc86a97476f98132cba9f610d906";
+    "688d6d2d33ff3b91ae15eb8be5660e7ccaec7d3170fb25f091c4972dcb447d9d";
 const PINNED_DENO_ARCHIVE_URL: &str =
     "https://github.com/denoland/deno/releases/download/v2.9.8/deno-x86_64-pc-windows-msvc.zip";
 const PINNED_DENO_ARCHIVE_SHA256: &str =
@@ -143,16 +144,18 @@ fn bootstrap_archive_tool(
 fn bootstrap_ffmpeg_tools(dir: &Path) -> Result<(PathBuf, PathBuf)> {
     let ffmpeg = dir.join("ffmpeg.exe");
     let ffprobe = dir.join("ffprobe.exe");
-    let need_ffmpeg =
-        !(installed_tool_manifest_present(&ffmpeg) || adopt_legacy_tool(&ffmpeg, "-version"));
+    // The format of the build matters: v1.2.1 installed an LGPL binary without
+    // libx264. A generic SHA sidecar alone cannot tell that from the fixed build.
+    let need_ffmpeg = !installed_ffmpeg_tool_present(&ffmpeg);
     let need_ffprobe =
         !(installed_tool_manifest_present(&ffprobe) || adopt_legacy_tool(&ffprobe, "-version"));
+    let archive_path = dir.join("ffmpeg.zip");
     if !need_ffmpeg && !need_ffprobe {
+        fs::remove_file(archive_path).ok();
         return Ok((ffmpeg, ffprobe));
     }
 
     crate::log::log_line("installation locale des outils FFmpeg");
-    let archive_path = dir.join("ffmpeg.zip");
     download_bytes(PINNED_FFMPEG_ARCHIVE_URL, &archive_path)?;
     if let Err(error) = verify_file_sha256_value(
         &archive_path,
@@ -193,6 +196,7 @@ fn bootstrap_ffmpeg_tools(dir: &Path) -> Result<(PathBuf, PathBuf)> {
         let hash = file_sha256_hex(&temporary)?;
         crate::atomic_file::replace_file(&temporary, dest)?;
         fs::write(dest.with_extension("sha256"), hash)?;
+        fs::write(dest.with_extension("build"), PINNED_FFMPEG_BUILD)?;
         *found = true;
     }
     fs::remove_file(&archive_path).ok();
@@ -203,6 +207,41 @@ fn bootstrap_ffmpeg_tools(dir: &Path) -> Result<(PathBuf, PathBuf)> {
         return Err(DollytError::BinMissing("ffprobe.exe".into()));
     }
     Ok((ffmpeg, ffprobe))
+}
+
+fn installed_ffmpeg_tool_present(dest: &Path) -> bool {
+    if !installed_tool_manifest_present(dest) {
+        return false;
+    }
+    let build_marker = dest.with_extension("build");
+    if fs::read_to_string(&build_marker)
+        .ok()
+        .is_some_and(|build| build.trim() == PINNED_FFMPEG_BUILD)
+    {
+        return true;
+    }
+
+    // Migrate existing installations once. Keep a compatible local build and
+    // only replace the old LGPL build when it actually lacks libx264.
+    if ffmpeg_supports_libx264(dest) {
+        return fs::write(build_marker, PINNED_FFMPEG_BUILD).is_ok();
+    }
+    false
+}
+
+fn ffmpeg_supports_libx264(executable: &Path) -> bool {
+    let mut command = std::process::Command::new(executable);
+    command.args(["-hide_banner", "-encoders"]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    command.output().is_ok_and(|output| {
+        output.status.success()
+            && (String::from_utf8_lossy(&output.stdout).contains("libx264")
+                || String::from_utf8_lossy(&output.stderr).contains("libx264"))
+    })
 }
 
 fn installed_tool_manifest_present(dest: &Path) -> bool {
@@ -446,6 +485,29 @@ mod tests {
         assert!(!installed_tool_manifest_present(&path));
         fs::remove_file(path).unwrap();
         fs::remove_file(sidecar).unwrap();
+    }
+
+    #[test]
+    fn ffmpeg_manifest_rejects_the_old_lgpl_build_and_accepts_the_pinned_gpl_build() {
+        let path = std::env::temp_dir().join(format!(
+            "dollyt-ffmpeg-build-manifest-{}-{}.exe",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&path, b"ffmpeg binary").unwrap();
+        fs::write(path.with_extension("sha256"), "a".repeat(64)).unwrap();
+        fs::write(path.with_extension("build"), "old-lgpl-build").unwrap();
+        assert!(!installed_ffmpeg_tool_present(&path));
+
+        fs::write(path.with_extension("build"), PINNED_FFMPEG_BUILD).unwrap();
+        assert!(installed_ffmpeg_tool_present(&path));
+
+        fs::remove_file(&path).unwrap();
+        fs::remove_file(path.with_extension("sha256")).unwrap();
+        fs::remove_file(path.with_extension("build")).unwrap();
     }
 
     #[test]

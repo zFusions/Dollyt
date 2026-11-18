@@ -21,9 +21,8 @@ pub fn spawn_ytdlp(args: &[&str]) -> Result<Child> {
     cmd.arg("--newline");
     cmd.arg("--progress-template");
     cmd.arg("download:%(progress._percent_str)s");
-    // Download jobs consume stderr for progress and diagnostics, not stdout.
-    // Leaving stdout piped but unread can eventually block yt-dlp on a full pipe.
-    cmd.stdout(Stdio::null());
+    // yt-dlp writes progress templates to stdout. Both pipes are drained by
+    // independent readers so neither can block the child process.
     cmd.spawn().map_err(DollytError::from)
 }
 
