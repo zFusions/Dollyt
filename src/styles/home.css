@@ -144,6 +144,15 @@
     transition: width 300ms var(--ease-out);
     animation: download-progress-pulse 700ms var(--ease-out) infinite;
   }
+  .download-progress--indeterminate span,
+  .queue-job-bar--indeterminate > span {
+    width: 32%;
+    animation: progress-indeterminate 1.4s ease-in-out infinite;
+  }
+  @keyframes progress-indeterminate {
+    from { transform: translateX(-110%); }
+    to { transform: translateX(340%); }
+  }
   @keyframes download-progress-pulse {
     0%, 100% {
       filter: brightness(1);

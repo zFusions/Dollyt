@@ -219,6 +219,16 @@ export async function pickExportDirectory(): Promise<string | null> {
   return invoke<string | null>("pick_export_directory");
 }
 
+export async function readDiagnosticLogs(): Promise<string> {
+  if (!isTauri()) return "";
+  return invoke<string>("read_diagnostic_logs");
+}
+
+export async function appendDiagnosticLog(message: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("append_diagnostic_log", { message });
+}
+
 export async function revealFile(path: string): Promise<void> {
   if (!isTauri()) return;
   await invoke("reveal_file", { path });

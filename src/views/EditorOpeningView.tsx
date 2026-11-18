@@ -17,6 +17,7 @@ export function EditorOpeningView() {
   const [pct, setPct] = useState(2);
   const [shown, setShown] = useState(2);
   const [fail, setFail] = useState("");
+  const [indeterminate, setIndeterminate] = useState(false);
   const target = useRef(2);
   target.current = pct;
 
@@ -35,7 +36,12 @@ export function EditorOpeningView() {
   useEffect(() => {
     if (!isTauri()) return;
     const unsubs: Array<() => void> = [];
-    listen<{ percent: number }>("preview-progress", (event) => {
+    listen<{ percent?: number | null; indeterminate?: boolean }>("preview-progress", (event) => {
+      if (event.payload.indeterminate || event.payload.percent == null) {
+        setIndeterminate(true);
+        return;
+      }
+      setIndeterminate(false);
       const n = Math.max(0, Math.min(100, event.payload.percent));
       setPct(n);
     }).then((u) => unsubs.push(u));
@@ -49,6 +55,7 @@ export function EditorOpeningView() {
         previewFileDurationSecs: event.payload.previewFileDurationSecs,
         previewStartSecs: event.payload.previewStartSecs ?? 0,
       });
+      setIndeterminate(false);
       setPct(100);
       setStatus("");
       setJobPercent(0);
@@ -56,6 +63,7 @@ export function EditorOpeningView() {
     listen<{ message?: string }>("preview-local-failed", (event) => {
       const msg = event.payload.message || t("downloadFailed");
       setFail(msg);
+      setIndeterminate(false);
       setStatus(msg);
     }).then((u) => unsubs.push(u));
     return () => {
@@ -84,15 +92,19 @@ export function EditorOpeningView() {
       <p className="editor-opening-title">{t("preparingVideoTitle")}</p>
       <p className="meta">{fail || status || t("ytInfoLoading")}</p>
       <div
-        className="load-track"
+        className={`load-track${indeterminate ? " load-track--indeterminate" : ""}`}
         role="progressbar"
-        aria-valuenow={Math.round(shown)}
+        aria-valuenow={indeterminate ? undefined : Math.round(shown)}
         aria-valuemin={0}
         aria-valuemax={100}
+        aria-valuetext={indeterminate ? t("progressUnavailable") : `${Math.round(shown)}%`}
       >
-        <div className="load-fill" style={{ transform: `scaleX(${shown / 100})` }} />
+        <div
+          className="load-fill"
+          style={indeterminate ? undefined : { transform: `scaleX(${shown / 100})` }}
+        />
       </div>
-      <p className="mono load-pct">{Math.round(shown)} %</p>
+      <p className="mono load-pct">{indeterminate ? "…" : `${Math.round(shown)} %`}</p>
       <SnakeWait />
       <p className="meta">{t("snakeHintLong")}</p>
       <button type="button" className="btn btn-ghost btn-sm" onClick={goHome} tabIndex={-1}>

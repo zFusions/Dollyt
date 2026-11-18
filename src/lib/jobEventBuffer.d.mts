@@ -1,6 +1,6 @@
 export type BufferedJobProgress = {
   stage: string;
-  percent: number;
+  percent: number | null;
 };
 
 export type BufferedJobFinished = {

@@ -267,7 +267,11 @@ export function EditorView() {
       if (n > 0 && n < 100) setFetchingPreview(true);
       if (n >= 100) setFetchingPreview(false);
     }).then((u) => unsubs.push(u));
-    listen<{ percent: number; stage: string }>("job-progress", (event) => {
+    listen<{ percent: number | null; stage: string }>("job-progress", (event) => {
+      if (event.payload.percent === null) {
+        setStatus(`${event.payload.stage} — ${t("progressUnavailable")}`);
+        return;
+      }
       setJobPercent(event.payload.percent);
       setStatus(`${event.payload.stage} — ${event.payload.percent} %`);
     }).then((u) => unsubs.push(u));
@@ -514,7 +518,7 @@ export function EditorView() {
             onExportFullVideoChange={setExportFullVideo}
             onExport={onExport}
             onCancel={onCancel}
-            jobPercent={jobPercent}
+            jobPercent={jobPercent ?? 0}
             status={status}
           />
         </aside>

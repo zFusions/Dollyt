@@ -588,6 +588,7 @@ fn read_ffmpeg_stderr(
     };
     let mut chunk = [0u8; 8192];
     let mut tail: Vec<u8> = Vec::new();
+    let mut log_line = Vec::new();
     loop {
         match r.read(&mut chunk) {
             Ok(0) | Err(_) => break,
@@ -606,8 +607,24 @@ fn read_ffmpeg_stderr(
                     let keep = data.len().min(64);
                     tail = data[data.len() - keep..].to_vec();
                 }
+                for byte in &chunk[..n] {
+                    if matches!(*byte, b'\r' | b'\n') {
+                        if !log_line.is_empty() {
+                            crate::log::log_line(&format!(
+                                "ffmpeg: {}",
+                                String::from_utf8_lossy(&log_line)
+                            ));
+                            log_line.clear();
+                        }
+                    } else if log_line.len() < 8192 {
+                        log_line.push(*byte);
+                    }
+                }
             }
         }
+    }
+    if !log_line.is_empty() {
+        crate::log::log_line(&format!("ffmpeg: {}", String::from_utf8_lossy(&log_line)));
     }
     full
 }

@@ -22,11 +22,20 @@ function QueueJobRow({ job }: { job: ExportJob }) {
         </span>
         <span className="queue-job-meta">
           {running ? t(STAGE_KEYS[job.stage] ?? "preparingClip") : t("queueWaiting")}
-          {running ? ` · ${job.percent}%` : ""}
+          {running
+            ? ` · ${job.percent === null ? t("progressUnavailable") : `${job.percent}%`}`
+            : ""}
         </span>
         {running ? (
-          <span className="queue-job-bar" role="progressbar" aria-valuenow={job.percent} aria-valuemin={0} aria-valuemax={100}>
-            <span style={{ width: `${job.percent}%` }} />
+          <span
+            className={`queue-job-bar${job.percent === null ? " queue-job-bar--indeterminate" : ""}`}
+            role="progressbar"
+            aria-valuenow={job.percent ?? undefined}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={job.percent === null ? t("progressUnavailable") : `${job.percent}%`}
+          >
+            <span style={job.percent === null ? undefined : { width: `${job.percent}%` }} />
           </span>
         ) : null}
       </div>
