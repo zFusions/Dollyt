@@ -122,10 +122,10 @@ export function DownloadView() {
           <section className="download-loading" aria-live="polite">
             <SnakeLoader active />
             <div className="download-loading-title">
-              <span className="download-percent">
-                {shownPercent === null ? "…" : `${shownPercent}%`}
-              </span>
               <h1>{stages[shownStage] ?? t("preparingClip")}</h1>
+              {shownPercent !== null ? (
+                <span className="download-percent">{shownPercent}%</span>
+              ) : null}
             </div>
             <div
               className={`download-progress${shownPercent === null ? " download-progress--indeterminate" : ""}`}
