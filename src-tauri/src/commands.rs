@@ -33,12 +33,15 @@ fn cancel_running_preview() {
 
 #[tauri::command]
 pub async fn initialize_tools() -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(|| -> Result<(), String> {
-        bins::ensure_tools().map_err(|error| error.to_string())?;
-        Ok(())
-    })
-    .await
-    .map_err(|error| error.to_string())??;
+    log::log_line("préparation des outils vidéo");
+    let result = tauri::async_runtime::spawn_blocking(bins::ensure_tools)
+        .await
+        .map_err(|error| error.to_string())?;
+    if let Err(error) = result {
+        log::log_line(&format!("préparation des outils vidéo échouée: {error}"));
+        return Err(error.to_string());
+    }
+    log::log_line("outils vidéo prêts");
 
     match settings::load() {
         Ok(config) if config.auto_update_ytdlp => {
@@ -56,6 +59,17 @@ pub async fn initialize_tools() -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn read_diagnostic_logs() -> String {
+    log::read_all()
+}
+
+#[tauri::command]
+pub fn append_diagnostic_log(message: String) {
+    let safe_message = message.chars().take(4_000).collect::<String>();
+    log::log_line(&format!("frontend {safe_message}"));
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -170,9 +184,16 @@ pub fn start_local_preview(
         let _ = app.emit("preview-progress", serde_json::json!({ "percent": 5 }));
         let slot = Arc::new(Mutex::new(None));
         let app_p = app.clone();
-        let on_progress = Arc::new(move |pct: u8| {
-            let mapped = 5 + ((pct as u16).saturating_mul(90) / 100) as u8;
-            let _ = app_p.emit("preview-progress", serde_json::json!({ "percent": mapped }));
+        let on_progress = Arc::new(move |pct: Option<u8>| {
+            if let Some(pct) = pct {
+                let mapped = 5 + ((pct as u16).saturating_mul(90) / 100) as u8;
+                let _ = app_p.emit("preview-progress", serde_json::json!({ "percent": mapped }));
+            } else {
+                let _ = app_p.emit(
+                    "preview-progress",
+                    serde_json::json!({ "indeterminate": true }),
+                );
+            }
         });
         let Ok(dl) = ytdlp::download_section_cancellable(
             &url,

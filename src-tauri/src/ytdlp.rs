@@ -11,39 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-pub type ProgressFn = Arc<dyn Fn(u8) + Send + Sync>;
-
-struct ProgressTicker {
-    stop_tx: std::sync::mpsc::SyncSender<()>,
-    worker: Option<thread::JoinHandle<()>>,
-}
-
-impl ProgressTicker {
-    fn spawn(callback: Arc<dyn Fn() + Send + Sync>) -> Self {
-        let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel(1);
-        let worker = thread::spawn(move || {
-            loop {
-                match stop_rx.recv_timeout(Duration::from_millis(400)) {
-                    Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => callback(),
-                }
-            }
-        });
-        Self {
-            stop_tx,
-            worker: Some(worker),
-        }
-    }
-}
-
-impl Drop for ProgressTicker {
-    fn drop(&mut self) {
-        let _ = self.stop_tx.try_send(());
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
-        }
-    }
-}
+pub type ProgressFn = Arc<dyn Fn(Option<u8>) + Send + Sync>;
 
 struct TemporaryDownloadGuard {
     path: PathBuf,
@@ -95,6 +63,7 @@ pub struct DownloadResult {
 
 pub fn fetch_metadata_json(url: &str) -> Result<Value> {
     let output = process::run_ytdlp(&["-J", url])?;
+    log_stderr_lines(&output.stderr);
     if !output.status.success() {
         return Err(DollytError::YtdlpFailed(ytdlp_user_message(
             &String::from_utf8_lossy(&output.stderr),
@@ -111,6 +80,9 @@ pub fn fetch_metadata_json(url: &str) -> Result<Value> {
 
 fn ytdlp_user_message(stderr: &str) -> String {
     let s = stderr.trim();
+    if s.contains("HTTP error 403 Forbidden") || s.contains("HTTP 403") {
+        return "Le serveur vidéo a refusé la requête (HTTP 403). Réessaie, mets à jour yt-dlp ou vérifie le réseau et les cookies.".into();
+    }
     if s.contains("Could not copy Chrome cookie database") {
         return "Chrome et Edge verrouillent leurs cookies sous Windows : yt-dlp ne peut pas les lire. Paramètres → Firefox, ou un fichier cookies.txt (extension « Get cookies.txt LOCALLY » sur youtube.com).".into();
     }
@@ -123,6 +95,8 @@ fn ytdlp_user_message(stderr: &str) -> String {
     if s.contains("Private video") {
         return "Vidéo privée ou inaccessible.".into();
     }
+    let safe = crate::log::redact_secrets(s);
+    let s = safe.as_str();
     if s.len() > 320 {
         let mut end = 320;
         while !s.is_char_boundary(end) {
@@ -133,6 +107,12 @@ fn ytdlp_user_message(stderr: &str) -> String {
         "yt-dlp n'a pas renvoyé de métadonnées.".into()
     } else {
         s.to_string()
+    }
+}
+
+fn log_stderr_lines(stderr: &[u8]) {
+    for line in String::from_utf8_lossy(stderr).lines() {
+        crate::log::log_line(&format!("yt-dlp: {line}"));
     }
 }
 
@@ -192,6 +172,7 @@ pub fn resolve_muxed_stream_url(page_url: &str, format_id: &str) -> Result<Strin
     };
     let output = process::run_ytdlp(&["-f", &fmt, "-g", page_url])?;
     if !output.status.success() {
+        log_stderr_lines(&output.stderr);
         return Err(DollytError::YtdlpFailed(ytdlp_user_message(
             &String::from_utf8_lossy(&output.stderr),
         )));
@@ -275,7 +256,7 @@ pub fn download_section_cancellable(
     let out = temp_mkv_path();
     let mut output_guard = TemporaryDownloadGuard::new(out.clone());
     let out_arg = out.to_string_lossy().into_owned();
-    let start = SystemTime::now();
+    let start = Instant::now();
     let mut args: Vec<&str> = vec!["-f", format_id, "-N", "4", "-o", out_arg.as_str()];
     if use_sections {
         args.extend(["--download-sections", &section]);
@@ -286,41 +267,42 @@ pub fn download_section_cancellable(
 
     args.push(url);
     let args = args.as_slice();
-    let mut child = process::spawn_ytdlp(args)?;
-    let stderr = child.stderr.take();
     let pct = Arc::new(AtomicU8::new(0));
+    let has_progress = Arc::new(AtomicBool::new(false));
     let stderr_tail = Arc::new(Mutex::new(Vec::<String>::new()));
-    if let Some(stderr) = stderr {
-        let pct_bg = Arc::clone(&pct);
-        let tail_bg = Arc::clone(&stderr_tail);
-        thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg, tail_bg));
-    }
+    retry_once_on_http_403(|| {
+        cleanup_partial_download(&out);
+        pct.store(0, Ordering::Relaxed);
+        has_progress.store(false, Ordering::Relaxed);
+        if let Ok(mut tail) = stderr_tail.lock() {
+            tail.clear();
+        }
 
-    if let Ok(mut guard) = child_slot.lock() {
-        *guard = Some(child);
-    }
-    // Sans sections, yt-dlp émet un vrai % via stderr ; avec sections
-    // (FFmpegFD) il n'en émet pas, d'où la progression synthétique bornée
-    // qui cède la place au vrai % dès qu'il arrive.
-    let ticker = if let Some(cb) = on_progress.clone() {
-        let started = start;
-        let pct_bg = Arc::clone(&pct);
-        Some(ProgressTicker::spawn(Arc::new(move || {
-            let real = pct_bg.load(Ordering::Relaxed);
-            let raw = if real > 0 {
-                real
-            } else {
-                let elapsed = started.elapsed().unwrap_or_default().as_secs_f64();
-                (100.0 * (1.0 - (-elapsed / 45.0).exp())).min(96.0) as u8
-            };
-            cb(raw);
-        })))
-    } else {
-        None
-    };
-    wait_child_slot(child_slot, cancel, &pct, stderr_tail, on_progress)?;
-    drop(ticker);
-    let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
+        let mut child = process::spawn_ytdlp(args)?;
+        let stderr_reader = child.stderr.take().map(|stderr| {
+            let pct_bg = Arc::clone(&pct);
+            let has_progress_bg = Arc::clone(&has_progress);
+            let tail_bg = Arc::clone(&stderr_tail);
+            thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg, has_progress_bg, tail_bg))
+        });
+        let mut reader = stderr_reader;
+        *child_slot
+            .lock()
+            .map_err(|_| DollytError::YtdlpFailed("verrou job".into()))? = Some(child);
+        if let Some(cb) = &on_progress {
+            cb(None);
+        }
+        wait_child_slot(
+            child_slot,
+            cancel,
+            &pct,
+            &has_progress,
+            Arc::clone(&stderr_tail),
+            &mut reader,
+            on_progress.clone(),
+        )
+    })?;
+    let elapsed_ms = start.elapsed().as_millis() as u64;
     if !out.exists() {
         return Err(DollytError::YtdlpFailed(
             "fichier MKV absent après téléchargement".into(),
@@ -332,6 +314,23 @@ pub fn download_section_cancellable(
         elapsed_ms,
         section_lo_secs: if use_sections { lo } else { 0.0 },
     })
+}
+
+fn retry_once_on_http_403<T>(mut operation: impl FnMut() -> Result<T>) -> Result<T> {
+    match operation() {
+        Err(error) if error.to_string().contains("HTTP 403") => {
+            crate::log::log_line("HTTP 403 pendant le téléchargement, nouvelle extraction yt-dlp");
+            operation()
+        }
+        result => result,
+    }
+}
+
+fn cleanup_partial_download(path: &PathBuf) {
+    let _ = std::fs::remove_file(path);
+    let mut partial = path.as_os_str().to_os_string();
+    partial.push(".part");
+    let _ = std::fs::remove_file(PathBuf::from(partial));
 }
 
 fn valid_format_selector(value: &str) -> bool {
@@ -349,13 +348,16 @@ fn valid_format_selector(value: &str) -> bool {
 fn read_ytdlp_stderr(
     stderr: std::process::ChildStderr,
     pct: Arc<AtomicU8>,
+    has_progress: Arc<AtomicBool>,
     tail: Arc<Mutex<Vec<String>>>,
 ) {
     let reader = BufReader::new(stderr);
     for line in reader.lines().map_while(|l| l.ok()) {
         if let Some(value) = parse_ytdlp_percent(&line) {
             pct.store(value, Ordering::Relaxed);
+            has_progress.store(true, Ordering::Relaxed);
         }
+        crate::log::log_line(&format!("yt-dlp: {}", line.trim()));
         if let Ok(mut t) = tail.lock() {
             let line = line.trim().to_string();
             if !line.is_empty() {
@@ -384,11 +386,12 @@ fn wait_child_slot(
     child_slot: &Arc<Mutex<Option<Child>>>,
     cancel: &AtomicBool,
     pct: &AtomicU8,
+    has_progress: &AtomicBool,
     stderr_tail: Arc<Mutex<Vec<String>>>,
+    stderr_reader: &mut Option<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
 ) -> Result<()> {
-    let mut last_emit = Instant::now();
-    let mut last_pct = 0u8;
+    let mut last_pct = None;
     loop {
         if cancel.load(Ordering::SeqCst) {
             if let Ok(mut guard) = child_slot.lock()
@@ -396,6 +399,7 @@ fn wait_child_slot(
             {
                 process::kill_process_tree(child.id());
             }
+            join_stderr_reader(stderr_reader);
             return Err(DollytError::Cancelled);
         }
         let status = {
@@ -411,22 +415,25 @@ fn wait_child_slot(
                 Err(e) => return Err(DollytError::from(e)),
             }
         };
-        if let Some(cb) = &on_progress {
-            let now = Instant::now();
+        if let Some(cb) = &on_progress
+            && has_progress.load(Ordering::Relaxed)
+        {
             let current = pct.load(Ordering::Relaxed);
-            if current != last_pct && now.duration_since(last_emit) >= Duration::from_millis(100) {
-                cb(current);
-                last_pct = current;
-                last_emit = now;
+            if last_pct != Some(current) {
+                cb(Some(current));
+                last_pct = Some(current);
             }
         }
         match status {
             None => std::thread::sleep(Duration::from_millis(100)),
             Some(status) if status.success() => {
                 let _ = child_slot.lock().map(|mut g| g.take());
+                join_stderr_reader(stderr_reader);
                 return Ok(());
             }
             Some(_) => {
+                let _ = child_slot.lock().map(|mut g| g.take());
+                join_stderr_reader(stderr_reader);
                 let detail = stderr_tail
                     .lock()
                     .ok()
@@ -442,6 +449,12 @@ fn wait_child_slot(
                 return Err(DollytError::YtdlpFailed(detail));
             }
         }
+    }
+}
+
+fn join_stderr_reader(reader: &mut Option<thread::JoinHandle<()>>) {
+    if reader.take().is_some_and(|handle| handle.join().is_err()) {
+        crate::log::log_line("le lecteur des logs yt-dlp s'est arrêté anormalement");
     }
 }
 
@@ -470,6 +483,63 @@ mod tests {
         let (id, url) = format::pick_muxed_format(formats).expect("muxed");
         assert_eq!(id, "18");
         assert!(url.starts_with("https://"));
+    }
+
+    #[test]
+    fn retries_http_403_once_with_a_fresh_extraction() {
+        let attempts = std::cell::Cell::new(0);
+        let result = retry_once_on_http_403(|| {
+            let attempt = attempts.get() + 1;
+            attempts.set(attempt);
+            if attempt == 1 {
+                Err(DollytError::YtdlpFailed(
+                    "Le serveur vidéo a refusé la requête (HTTP 403).".into(),
+                ))
+            } else {
+                Ok("downloaded")
+            }
+        });
+
+        assert_eq!(result.unwrap(), "downloaded");
+        assert_eq!(attempts.get(), 2);
+    }
+
+    #[test]
+    fn does_not_retry_non_403_download_errors() {
+        let attempts = std::cell::Cell::new(0);
+        let result: Result<()> = retry_once_on_http_403(|| {
+            attempts.set(attempts.get() + 1);
+            Err(DollytError::YtdlpFailed("offline".into()))
+        });
+
+        assert!(result.is_err());
+        assert_eq!(attempts.get(), 1);
+    }
+
+    #[test]
+    fn stops_after_one_retry_when_the_server_still_returns_403() {
+        let attempts = std::cell::Cell::new(0);
+        let result: Result<()> = retry_once_on_http_403(|| {
+            attempts.set(attempts.get() + 1);
+            Err(DollytError::YtdlpFailed(
+                "Le serveur vidéo a refusé la requête (HTTP 403).".into(),
+            ))
+        });
+
+        assert!(result.is_err());
+        assert_eq!(attempts.get(), 2);
+    }
+
+    #[test]
+    fn reports_403_without_leaking_the_signed_video_url() {
+        let message = ytdlp_user_message(
+            "HTTP error 403 Forbidden Error opening input file https://rr4.googlevideo.com/videoplayback?ip=192.0.2.1&sig=private",
+        );
+
+        assert!(message.contains("HTTP 403"));
+        assert!(!message.contains("googlevideo"));
+        assert!(!message.contains("192.0.2.1"));
+        assert!(!message.contains("private"));
     }
 
     #[test]
@@ -512,23 +582,6 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("sélecteur de format invalide"));
-    }
-
-    #[test]
-    fn dropping_progress_ticker_stops_its_worker() {
-        let (callback_tx, callback_rx) = std::sync::mpsc::sync_channel(1);
-        let ticker = ProgressTicker::spawn(Arc::new(move || {
-            let _ = callback_tx.try_send(());
-        }));
-        callback_rx
-            .recv_timeout(Duration::from_secs(2))
-            .expect("ticker should invoke its callback");
-        drop(ticker);
-        assert!(
-            callback_rx
-                .recv_timeout(Duration::from_millis(500))
-                .is_err()
-        );
     }
 
     #[test]

@@ -121,11 +121,20 @@ export function DownloadView() {
           <section className="download-loading" aria-live="polite">
             <SnakeLoader active />
             <div className="download-loading-title">
-              <span className="download-percent">{shownPercent}%</span>
+              <span className="download-percent">
+                {shownPercent === null ? "…" : `${shownPercent}%`}
+              </span>
               <h1>{stages[shownStage] ?? t("preparingClip")}</h1>
             </div>
-            <div className="download-progress" role="progressbar" aria-valuenow={shownPercent} aria-valuemin={0} aria-valuemax={100}>
-              <span style={{ width: `${shownPercent}%` }} />
+            <div
+              className={`download-progress${shownPercent === null ? " download-progress--indeterminate" : ""}`}
+              role="progressbar"
+              aria-valuenow={shownPercent ?? undefined}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuetext={shownPercent === null ? t("progressUnavailable") : `${shownPercent}%`}
+            >
+              <span style={shownPercent === null ? undefined : { width: `${shownPercent}%` }} />
             </div>
             <div className="download-bg">
               <button type="button" className="btn btn-sm" onClick={newClip}>

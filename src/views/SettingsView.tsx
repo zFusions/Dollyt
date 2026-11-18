@@ -15,6 +15,7 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { useDollytStore } from "../store";
 import { setLocale, t, useLocale } from "../i18n";
 import { setLeaveGuard } from "../lib/leaveGuard";
+import { DiagnosticLogsPanel } from "../components/DiagnosticLogsPanel";
 
 const DEFAULTS: Settings = {
   exportDir: "",
@@ -335,6 +336,15 @@ export function SettingsView() {
                 {t("recheckYtdlp")}
               </PrimaryButton>
             </SettingRow>
+          </div>
+        </Panel>
+      </section>
+
+      <section className="set-section">
+        <h2 className="set-heading">{t("diagnosticConsole")}</h2>
+        <Panel>
+          <div className="set-group">
+            <DiagnosticLogsPanel />
           </div>
         </Panel>
       </section>

@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { t } from "../i18n";
 
-type Props = { text: string; className?: string };
+type Props = {
+  text: string;
+  className?: string;
+  label?: string;
+  disabled?: boolean;
+};
 
-export function CopyButton({ text, className = "" }: Props) {
+export function CopyButton({ text, className = "", label, disabled = false }: Props) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -28,8 +33,9 @@ export function CopyButton({ text, className = "" }: Props) {
       type="button"
       className={`btn btn-sm ${className}`.trim()}
       onClick={() => void copy()}
+      disabled={disabled}
     >
-      {copied ? t("copiedFeedback") : t("copyAction")}
+      {copied ? t("copiedFeedback") : label ?? t("copyAction")}
     </button>
   );
 }

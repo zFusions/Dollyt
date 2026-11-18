@@ -20,7 +20,7 @@ use tauri::{AppHandle, Emitter, State};
 pub struct JobProgress {
     pub job_id: u64,
     pub stage: String,
-    pub percent: u8,
+    pub percent: Option<u8>,
 }
 
 pub struct JobsState {
@@ -218,6 +218,9 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
             Ok((path, preview)) => (true, "Extrait exporté.".to_string(), Some(path), preview),
             Err(e) => (false, e, None, None),
         };
+        if !ok {
+            log::log_line(&format!("job {} échoué: {message}", request.job_id));
+        }
         let _ = app.emit(
             "job-finished",
             JobFinished {
@@ -302,8 +305,7 @@ fn run_cut_job(
     };
     let app_dl = app.clone();
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
-        let mapped = 20u8.saturating_add(((raw as u16).saturating_mul(48) / 100) as u8);
-        let _ = emit(&app_dl, job_id, "download", mapped);
+        let _ = emit_progress(&app_dl, job_id, "download", map_download_percent(raw));
     });
     let whole_video = start_secs <= 0.5 && end_secs >= info.duration_secs - 0.5;
     let download = ytdlp::download_section_cancellable(
@@ -372,7 +374,20 @@ fn download_fallback_format(preset_id: &str, format_id: &str) -> String {
     }
 }
 
+fn map_download_percent(raw: Option<u8>) -> Option<u8> {
+    raw.map(|raw| 20u8.saturating_add(((raw as u16).saturating_mul(48) / 100) as u8))
+}
+
 fn emit(app: &AppHandle, job_id: u64, stage: &str, percent: u8) -> Result<(), String> {
+    emit_progress(app, job_id, stage, Some(percent))
+}
+
+fn emit_progress(
+    app: &AppHandle,
+    job_id: u64,
+    stage: &str,
+    percent: Option<u8>,
+) -> Result<(), String> {
     app.emit(
         "job-progress",
         JobProgress {
@@ -399,5 +414,12 @@ mod tests {
     #[test]
     fn other_presets_keep_their_existing_format_fallback() {
         assert_eq!(download_fallback_format("source", "18"), "18");
+    }
+
+    #[test]
+    fn missing_download_progress_stays_indeterminate() {
+        assert_eq!(map_download_percent(None), None);
+        assert_eq!(map_download_percent(Some(0)), Some(20));
+        assert_eq!(map_download_percent(Some(100)), Some(68));
     }
 }

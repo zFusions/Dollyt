@@ -56,6 +56,7 @@ pub fn ensure_tools() -> Result<()> {
     let ytdlp = dir.join("yt-dlp.exe");
     let ytdlp_is_verified = ensure_ytdlp_install_marker(&ytdlp)?;
     if !ytdlp_is_verified {
+        crate::log::log_line(&format!("installation yt-dlp {PINNED_YTDLP_TAG}"));
         download_ytdlp_release(&ytdlp)?;
     }
     let (ffmpeg, ffprobe) = bootstrap_ffmpeg_tools(&dir)?;
@@ -98,6 +99,7 @@ fn bootstrap_archive_tool(
     if installed_tool_manifest_present(dest) || adopt_legacy_tool(dest, version_flag) {
         return Ok(dest.to_path_buf());
     }
+    crate::log::log_line(&format!("installation locale de {name}"));
     let hash_path = dest.with_extension("sha256");
     let archive_path = dest.with_extension("zip");
     download_bytes(url, &archive_path)?;
@@ -114,7 +116,10 @@ fn bootstrap_archive_tool(
         let mut entry = archive
             .by_index(index)
             .map_err(|error| DollytError::BinDownload(error.to_string()))?;
-        let entry_name = entry.name().replace('\\', "/");
+        let entry_name = entry
+            .name()
+            .map_err(|error| DollytError::BinDownload(error.to_string()))?
+            .replace('\\', "/");
         if !entry_name.ends_with(archive_suffix) || entry_name.contains("../") {
             continue;
         }
@@ -146,6 +151,7 @@ fn bootstrap_ffmpeg_tools(dir: &Path) -> Result<(PathBuf, PathBuf)> {
         return Ok((ffmpeg, ffprobe));
     }
 
+    crate::log::log_line("installation locale des outils FFmpeg");
     let archive_path = dir.join("ffmpeg.zip");
     download_bytes(PINNED_FFMPEG_ARCHIVE_URL, &archive_path)?;
     if let Err(error) = verify_file_sha256_value(
@@ -165,7 +171,10 @@ fn bootstrap_ffmpeg_tools(dir: &Path) -> Result<(PathBuf, PathBuf)> {
         let mut entry = archive
             .by_index(index)
             .map_err(|error| DollytError::BinDownload(error.to_string()))?;
-        let entry_name = entry.name().replace('\\', "/");
+        let entry_name = entry
+            .name()
+            .map_err(|error| DollytError::BinDownload(error.to_string()))?
+            .replace('\\', "/");
         let (dest, found, suffix) =
             if need_ffmpeg && entry_name.ends_with("/bin/ffmpeg.exe") && !found_ffmpeg {
                 (&ffmpeg, &mut found_ffmpeg, "/bin/ffmpeg.exe")

@@ -29,6 +29,7 @@ pub fn run() {
         .setup(|app| {
             win_priority::boost_app_process();
             let _ = storage::prune_on_startup();
+            log::initialize(app.handle().clone());
             log::log_line("application démarrée");
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_decorations(false);
@@ -37,6 +38,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::initialize_tools,
+            commands::read_diagnostic_logs,
+            commands::append_diagnostic_log,
             commands::load_video,
             commands::reveal_file,
             commands::resolve_preview_url,

@@ -57,6 +57,14 @@
     transform-origin: left center;
     background: var(--safelight);
   }
+  .load-track--indeterminate .load-fill {
+    width: 32%;
+    animation: load-indeterminate 1.4s ease-in-out infinite;
+  }
+  @keyframes load-indeterminate {
+    from { transform: translateX(-110%); }
+    to { transform: translateX(340%); }
+  }
   .load-pct {
     font-size: 12px;
     color: var(--fg-2);

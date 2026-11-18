@@ -19,6 +19,8 @@ import { useAppUpdater } from "./hooks/useAppUpdater";
 import { getLeaveGuard } from "./lib/leaveGuard";
 import { bufferJobFinished, bufferJobProgress } from "./lib/jobEventBuffer.mjs";
 import { UnsavedGuardDialog } from "./components/UnsavedGuardDialog";
+import { DiagnosticLogsPanel } from "./components/DiagnosticLogsPanel";
+import { installDiagnosticConsole } from "./lib/installDiagnosticConsole";
 import type { Screen } from "./store";
 
 function App() {
@@ -47,6 +49,8 @@ function App() {
   );
   const [toolsError, setToolsError] = useState("");
   const [toolsAttempt, setToolsAttempt] = useState(0);
+
+  useEffect(() => installDiagnosticConsole(), []);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -133,7 +137,7 @@ function App() {
     if (!isTauri()) return;
     let active = true;
     const unsubs: Array<() => void> = [];
-    listen<{ jobId: number; stage: string; percent: number }>(
+    listen<{ jobId: number; stage: string; percent: number | null }>(
       "job-progress",
       (event) => {
         if (!active) return;
@@ -244,6 +248,7 @@ function App() {
         <section className="tools-init-card" aria-live="polite">
           <h1>{t("toolsSetupFailed")}</h1>
           <p>{toolsError}</p>
+          <DiagnosticLogsPanel initiallyOpen />
           <button
             type="button"
             className="btn btn-primary btn-sm"

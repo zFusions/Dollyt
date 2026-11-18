@@ -16,7 +16,7 @@ export type ExportJob = {
   startSecs?: number;
   endSecs?: number;
   stage: string;
-  percent: number;
+  percent: number | null;
   state: ExportJobState;
   message: string;
   outputPath: string;
@@ -80,7 +80,7 @@ type DollytState = {
   endSecs: number;
   playheadSecs: number;
   status: string;
-  jobPercent: number;
+  jobPercent: number | null;
   downloadState: DownloadState;
   downloadStage: string;
   downloadPath: string;
@@ -99,7 +99,7 @@ type DollytState = {
   setStatus: (status: string) => void;
   setJobPercent: (n: number) => void;
   beginDownload: () => void;
-  setDownloadProgress: (stage: string, percent: number) => void;
+  setDownloadProgress: (stage: string, percent: number | null) => void;
   finishDownload: (
     ok: boolean,
     message: string,
@@ -142,7 +142,7 @@ function stopProgressPump() {
 
 export const useDollytStore = create<DollytState>((set, get) => {
   const pumpProgress = () => {
-    const current = get().jobPercent;
+    const current = get().jobPercent ?? 0;
     const gap = progressTarget - current;
     if (gap <= 0.01) {
       if (current !== progressTarget) set({ jobPercent: progressTarget });
@@ -222,6 +222,12 @@ export const useDollytStore = create<DollytState>((set, get) => {
     });
   },
   setDownloadProgress: (downloadStage, jobPercent) => {
+    if (jobPercent === null) {
+      progressTarget = 0;
+      stopProgressPump();
+      set({ downloadState: "loading", downloadStage, jobPercent: null });
+      return;
+    }
     progressTarget = Math.min(100, Math.max(progressTarget, jobPercent));
     ensureProgressPump();
     set({ downloadState: "loading", downloadStage });

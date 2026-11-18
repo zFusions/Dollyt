@@ -1,3 +1,20 @@
+## Dollyt 1.2.1
+
+### Improved
+
+- Download progress no longer displays estimated percentages when yt-dlp cannot report real progress.
+- A Google Video HTTP 403 during a clip download triggers one fresh metadata extraction and retry. Persistent failures show a clearer message and keep signed media URLs out of diagnostics.
+- An in-app diagnostic console provides live application logs and a control to copy them for support.
+- Local tool setup records its stages and failures in the diagnostic log.
+
+### Fixed
+
+- Prevents yt-dlp download processes from blocking on unread standard output.
+- Collects yt-dlp and FFmpeg diagnostics before resolving export errors.
+- Updates the Rust `zip` dependency to resolve reported vulnerabilities.
+
+Windows x64 installer. See [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details.
+
 ## Dollyt 1.2.0
 
 ### Added

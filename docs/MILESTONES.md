@@ -1,6 +1,6 @@
 # Jalons
 
-État courant au 2026-11-14 : v1.1.1 est publiée. Les correctifs d'audit du commit local `8846630` ne sont pas poussés. Le prochain lot produit reste à prioriser pour la v1.2.0.
+État courant au 2026-11-18 : v1.2.0 est publiée. Le prochain patch prévu est la v1.2.1, centrée sur la fiabilité des téléchargements, la progression réelle et les diagnostics.
 
 Le socle documentaire est validé. Le plan M0 est dans [plans/M0.md](plans/M0.md) ; l'exécution commence après validation de ce plan.
 
