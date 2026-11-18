@@ -5,6 +5,7 @@ import { t } from "../i18n";
 type UpdateDialogProps = {
   version: string;
   body?: string | null;
+  downloadPercent: number | null;
   onInstall: () => void;
   onIgnore: () => void;
 };
@@ -43,6 +44,7 @@ function parseBody(body: string): Block[] {
 export function UpdateDialog({
   version,
   body,
+  downloadPercent,
   onInstall,
   onIgnore,
 }: UpdateDialogProps) {
@@ -95,6 +97,20 @@ export function UpdateDialog({
                 </p>
               );
             })}
+          </div>
+        ) : null}
+        {installing ? (
+          <div className="update-download-progress" aria-live="polite">
+            <p>{t("updateDownloading")}{downloadPercent === null ? "" : ` ${downloadPercent}%`}</p>
+            <div
+              className={`download-progress${downloadPercent === null ? " download-progress--indeterminate" : ""}`}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={downloadPercent ?? undefined}
+            >
+              <span style={downloadPercent === null ? undefined : { width: `${downloadPercent}%` }} />
+            </div>
           </div>
         ) : null}
         <div className="set-dev-gate-actions">

@@ -307,14 +307,16 @@ fn run_cut_job(
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
         let _ = emit_progress(&app_dl, job_id, "download", map_download_percent(raw));
     });
-    let whole_video = start_secs <= 0.5 && end_secs >= info.duration_secs - 0.5;
+    // yt-dlp's FFmpeg section downloader has no byte-progress events. Download
+    // with yt-dlp's native downloader and trim locally so the UI gets real %.
+    let use_sections = false;
     let download = ytdlp::download_section_cancellable(
         &url,
         &dl_format,
         start_secs,
         end_secs,
         3.0,
-        !whole_video,
+        use_sections,
         cancel,
         child_slot,
         Some(on_progress),

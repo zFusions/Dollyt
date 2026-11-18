@@ -873,7 +873,7 @@ dependencies = [
 
 [[package]]
 name = "dollyt"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "hex",
  "rfd",

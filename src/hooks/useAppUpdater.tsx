@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { check } from "@tauri-apps/plugin-updater";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getSettings, saveSettings } from "../api/dollyt";
 import { UpdateDialog } from "../components/UpdateDialog";
@@ -14,6 +14,8 @@ type UpdateInfo = {
 
 export function useAppUpdater() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ title: string; message: string } | null>(
     null,
   );
@@ -33,12 +35,17 @@ export function useAppUpdater() {
       }
 
       const settings = await getSettings();
-      if (!settings) return;
-
-      if (settings.ignoredUpdateVersion === update.version && !manual) {
+      if (!settings) {
+        await update.close();
         return;
       }
 
+      if (settings.ignoredUpdateVersion === update.version && !manual) {
+        await update.close();
+        return;
+      }
+
+      setAvailableUpdate(update);
       setUpdateInfo({
         version: update.version,
         body: update.body,
@@ -54,15 +61,31 @@ export function useAppUpdater() {
   }
 
   async function handleInstall() {
-    if (!updateInfo) return;
+    if (!updateInfo || !availableUpdate) return;
 
     try {
-      const update = await check();
-      if (!update) return;
-
-      await update.downloadAndInstall();
+      setDownloadPercent(0);
+      let downloaded = 0;
+      let contentLength: number | undefined;
+      await availableUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          contentLength = event.data.contentLength;
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          setDownloadPercent(
+            contentLength && contentLength > 0
+              ? Math.min(99, Math.floor((downloaded / contentLength) * 100))
+              : null,
+          );
+        } else if (event.event === "Finished") {
+          setDownloadPercent(100);
+        }
+      });
       await relaunch();
     } catch (error) {
+      await availableUpdate.close().catch(() => undefined);
+      setAvailableUpdate(null);
+      setUpdateInfo(null);
       setNotice({
         title: t("updateError"),
         message: String(error),
@@ -81,6 +104,8 @@ export function useAppUpdater() {
       ignoredUpdateVersion: updateInfo.version,
     });
 
+    await availableUpdate?.close();
+    setAvailableUpdate(null);
     setUpdateInfo(null);
   }
 
@@ -111,6 +136,7 @@ export function useAppUpdater() {
       <UpdateDialog
         version={updateInfo.version}
         body={updateInfo.body}
+        downloadPercent={downloadPercent}
         onInstall={handleInstall}
         onIgnore={handleIgnore}
       />

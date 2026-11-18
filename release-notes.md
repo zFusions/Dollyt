@@ -1,3 +1,18 @@
+## Dollyt 1.2.2
+
+### Fixed
+
+- Restores H.264 MP4 exports by installing an FFmpeg build that includes `libx264`. Existing installations are checked once and only incompatible FFmpeg binaries are replaced. Migrating an incompatible install downloads a 185 MiB FFmpeg archive once.
+- Clip downloads use yt-dlp's native progress reporting before the requested section is cut locally. This reports a real percentage but can download more of the source video, especially for long videos.
+- Installing an app update reuses the update already found, avoiding a second network check. The dialog reports update download progress when the server provides a content length.
+
+### Improved
+
+- Hardware encoders remain opt-in and are probed before use. Software encoding remains available on supported Windows x64 PCs without an NVIDIA or AMD dedicated graphics card.
+- Documents the separately licensed FFmpeg GPL runtime and its source build references.
+
+Windows x64 installer. See [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details.
+
 ## Dollyt 1.2.1
 
 ### Improved

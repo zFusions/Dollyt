@@ -43,6 +43,7 @@
 - **Export queue** — multiple jobs, live progress per job, per-job cancel
 - **Audio exports** — MP3 320k or FLAC lossless, with a custom audio player
 - **FFmpeg encoding** — optional hardware encoding (NVIDIA NVENC or AMD AMF)
+- **Real clip progress** — yt-dlp reports download progress before Dollyt cuts the selected range locally; this can download more data than the clip alone on long videos
 - **History** — every completed export is saved locally; open its location or remove its history entry
 - **Snake** — a tiny game that keeps you company during long exports, with a persistent high score
 - **Bilingual** — French and English, switches instantly
@@ -56,7 +57,7 @@
 
 ## Requirements
 
-- Windows 10 1809+ or Windows 11 (x64), WebView2 Runtime
+- Windows 10 22H2 or Windows 11 (x64), WebView2 Runtime. Hardware encoding is optional; software encoding works without a dedicated GPU.
 - Rust stable + Tauri prerequisites, Node.js and npm — for source builds only
 
 Runtime tool licenses and sources: [THIRD_PARTY.md](THIRD_PARTY.md).

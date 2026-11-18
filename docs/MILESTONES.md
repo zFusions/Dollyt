@@ -1,6 +1,6 @@
 # Jalons
 
-État courant au 2026-11-18 : v1.2.0 est publiée. Le prochain patch prévu est la v1.2.1, centrée sur la fiabilité des téléchargements, la progression réelle et les diagnostics.
+État courant au 2026-11-18 : v1.2.1 est publiée. Le patch de fiabilité en préparation est la v1.2.2 : encodeur FFmpeg compatible avec les presets MP4, progression réelle des téléchargements d'extraits et installation de mise à jour sans seconde vérification réseau.
 
 Le socle documentaire est validé. Le plan M0 est dans [plans/M0.md](plans/M0.md) ; l'exécution commence après validation de ce plan.
 

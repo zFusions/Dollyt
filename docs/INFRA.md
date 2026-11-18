@@ -1,20 +1,20 @@
 # Infra Dollyt (hors interface)
 
-État au 2026-11-14 : release publique v1.1.1; le flux actif va d'un lien YouTube à un export, avec preview du fichier terminé et historique local. L'éditeur timeline existe mais est **quarantiné** (`src/editorAvailability.ts` → `EDITOR_QUARANTINED = true`).
+État au 2026-11-18 : release publique v1.2.1; le patch v1.2.2 en préparation met à jour FFmpeg pour les exports H.264. L'éditeur timeline existe mais est **quarantiné** (`src/editorAvailability.ts` → `EDITOR_QUARANTINED = true`).
 
 ## Rust (`src-tauri/src/`)
 
 | Module | Rôle |
 |--------|------|
-| `bins` | `%LOCALAPPDATA%\Dollyt\bin` — téléchargements initiaux épinglés et vérifiés par SHA-256; les manifestes locaux servent de marqueurs d’installation et évitent de recalculer les hashes aux lancements suivants; yt-dlp garde un marqueur de version validée; self-update via GitHub avec contrôle `--version` au moment de la mise à jour |
+| `bins` | `%LOCALAPPDATA%\Dollyt\bin` — téléchargements initiaux épinglés et vérifiés par SHA-256; un marqueur de build FFmpeg déclenche une migration unique vers un binaire avec `libx264` si l'existant en est dépourvu; yt-dlp garde un marqueur de version validée |
 | `commands` | Surface Tauri : `initialize_tools`, `load_video`, `resolve_preview_url`, `start/cancel_local_preview`, `get_timeline_filmstrip(_master)`, `release_preview_cache`, settings, presets, `update_ytdlp`, `pick_export_directory`, `start_cut_job_command`, `reveal_file` |
 | `format` | Choix des formats yt-dlp : preview muxée (itag 18) + formats HQ pour export |
 | `ffmpeg` | Coupe exacte de plage, export selon preset (x264 CRF / copie de flux, audio AAC) |
-| `jobs` | Un job à la fois : load → download section → probe → encode → `job-progress` / `job-finished` events; les presets intégrés et utilisateur sont résolus côté worker |
+| `jobs` | Un job à la fois : load → téléchargement yt-dlp avec progression réelle → découpe/encode local → `job-progress` / `job-finished` events; les presets intégrés et utilisateur sont résolus côté worker |
 | `presets` | 10 JSON embarqués (`src-tauri/presets/`) + presets JSON utilisateur `%LOCALAPPDATA%\Dollyt\presets`; les IDs intégrés ont priorité sur les collisions |
 | `settings` | `settings.json` : dossier export, gabarit global (le gabarit par défaut du preset reste actif), matériel NVENC/AMF, dev CRF/fps/audio/x264, langue, auto-update app/yt-dlp, version ignorée |
 | `storyboard` | Extraction sb0–sb3 depuis les métadonnées yt-dlp (timeline, quarantain) |
-| `ytdlp` | Wrapper yt-dlp via Deno : `-J` metadata, section download, détection cookies Firefox/fichier, mapping erreurs, ticker de progression nettoyé à chaque sortie |
+| `ytdlp` | Wrapper yt-dlp via Deno : `-J` metadata, téléchargement natif pour publier une progression réelle, détection cookies Firefox/fichier et mapping erreurs |
 | `error` | Messages d'erreur normalisés (`yt-dlp a échoué`, `ffmpeg a échoué`, …) — traduits côté front via `backendText()` |
 | `log` | Rotation ~2 Mo → `.1.log`, URLs masquées |
 
