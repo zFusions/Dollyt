@@ -71,6 +71,7 @@ export function DownloadView() {
   const [openError, setOpenError] = useState("");
   const stages: Record<string, string> = {
     validation: t("preparingVideo"),
+    metadata: t("analyzingVideo"),
     download: t("downloadingVideo"),
     encode: t("creatingClip"),
     done: t("done"),

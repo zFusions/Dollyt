@@ -1,6 +1,6 @@
 # Jalons
 
-État courant au 2026-11-18 : v1.2.2 est publiée. Cette version corrige l'encodeur FFmpeg des presets MP4, capte la progression réelle de yt-dlp et supprime la seconde vérification réseau lors de l'installation d'une mise à jour.
+État courant au 2026-11-18 : v1.2.2 est publiée; un candidat local v1.2.3 attend le test utilisateur avant toute publication. Il intègre les outils au setup Windows, réduit les appels réseau redondants et corrige les chemins FFmpeg et file d'exports identifiés pendant l'audit.
 
 Le socle documentaire est validé. Le plan M0 est dans [plans/M0.md](plans/M0.md) ; l'exécution commence après validation de ce plan.
 

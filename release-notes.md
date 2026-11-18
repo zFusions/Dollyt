@@ -1,3 +1,21 @@
+## Dollyt 1.2.3
+
+### Fixed
+
+- Installs yt-dlp, FFmpeg, ffprobe and Deno during Windows setup so a new installation does not download the video tools on its first app launch.
+- Selects an available software H.264 encoder and applies valid OpenH264 bitrate units while respecting preset bitrate limits.
+- Reuses recent video metadata instead of requesting it twice for one export.
+- Keeps queue progress associated with the active export and closes a cancellation race between queue handoff and process start.
+- Downloads only the requested time range when a clip covers less than most of the source video, avoiding full-length downloads for short excerpts.
+
+### Improved
+
+- Bounds yt-dlp network socket waits and retry counts so stalled requests can fail with a recoverable error.
+- Shows a clear connection and format-analysis stage when YouTube has not provided a measurable download percentage yet.
+- Runs the full Node, npm, Rust, E2E and runtime-tool verification set before a tagged release build.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.2
 
 ### Fixed

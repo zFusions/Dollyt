@@ -13,14 +13,18 @@ on:
 
 permissions:
   contents: write
+  checks: write
 
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -37,9 +41,14 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path release-notes.md) {
-            $body = Get-Content release-notes.md -Raw
+            $allNotes = Get-Content release-notes.md -Raw
+            $version = $env:RELEASE_TAG.TrimStart('v')
+            $pattern = "(?ms)^## Dollyt $([regex]::Escape($version))\r?\n(?<notes>.*?)(?=\r?\n## Dollyt |\z)"
+            $match = [regex]::Match($allNotes, $pattern)
+            if (-not $match.Success) { throw "No release notes found for $env:RELEASE_TAG." }
+            $body = "## Dollyt $version`n`n" + $match.Groups['notes'].Value.Trim()
           } else {
-            $body = "## Dollyt $env:GITHUB_REF_NAME`n`nWindows x64 installer.`n`nSee [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details."
+            $body = "## Dollyt $env:RELEASE_TAG`n`nWindows x64 installer.`n`nSee [README.md](https://github.com/zFusions/Dollyt/blob/master/README.md) for usage and privacy details."
           }
           "body<<RELEASE_NOTES_EOF" >> $env:GITHUB_OUTPUT
           $body >> $env:GITHUB_OUTPUT
@@ -48,11 +57,30 @@ jobs:
       - name: Verify source
         shell: pwsh
         run: |
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $cargoVersion = [regex]::Match((Get-Content src-tauri/Cargo.toml -Raw), '(?m)^version = "([^"]+)"').Groups[1].Value
+          $lockVersion = [regex]::Match((Get-Content src-tauri/Cargo.lock -Raw), '(?ms)^name = "dollyt"\s+version = "([^"]+)"').Groups[1].Value
+          $versions = @($packageVersion, $tauriVersion, $cargoVersion, $lockVersion)
+          if (($versions | Select-Object -Unique).Count -ne 1) {
+            throw "Package, Tauri, Cargo and lockfile versions must match."
+          }
+          if ($env:RELEASE_TAG -ne "v$packageVersion") { throw "Tag $env:RELEASE_TAG does not match version $packageVersion." }
+          node --test scripts/*.test.mjs
+          npm audit --audit-level=high
           npm run typecheck
           npm run build
+          npm run stage:runtime-tools
           cargo test --manifest-path src-tauri/Cargo.toml --locked
           cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
           cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          npx playwright install chromium
+          npm run test:e2e
+
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
 
       - name: Build and publish installers
         uses: tauri-apps/tauri-action@v1.0.0
@@ -61,8 +89,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           uploadUpdaterSignatures: false
-          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          releaseName: "Dollyt ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: "Dollyt ${{ env.RELEASE_TAG }}"
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false

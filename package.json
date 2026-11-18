@@ -1,10 +1,11 @@
 {
   "name": "dollyt",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "scripts": {
     "dev": "node scripts/run-local-command.mjs vite",
+    "stage:runtime-tools": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-runtime-tools.ps1",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

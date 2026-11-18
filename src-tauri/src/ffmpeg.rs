@@ -10,7 +10,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::{Child, Output};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
@@ -145,6 +145,14 @@ fn export_section_impl(
         maxrate.as_deref(),
         bufsize.as_deref(),
     );
+    let openh264_bitrate = (vcodec == "libopenh264").then(|| {
+        openh264_bitrate_argument(openh264_target_bitrate_kbps(
+            preset.width,
+            preset.height,
+            preset.crf.unwrap_or(20),
+            preset.video_max_bitrate_kbps,
+        ))
+    });
 
     let mut args: Vec<&str> = vec!["-y", "-ss", &ss, "-i", input_path, "-t", &dur];
     if preset.video_codec == "none" {
@@ -163,6 +171,9 @@ fn export_section_impl(
         } else {
             args.extend(["-c:v", vcodec.as_str()]);
             let is_amf = vcodec == "h264_amf";
+            if let Some(bitrate) = openh264_bitrate.as_deref() {
+                args.extend(["-b:v", bitrate]);
+            }
             if vcodec == "libx264" || vcodec == "h264_nvenc" || is_amf {
                 if is_amf {
                     args.extend(amf_rate_args.iter().map(String::as_str));
@@ -348,11 +359,70 @@ fn pick_video_encoder(preset: &Preset, hardware_encode: bool) -> String {
         } else if amf_available() {
             "h264_amf".to_string()
         } else {
-            preset.video_codec.clone()
+            software_h264_encoder()
         }
     } else {
-        preset.video_codec.clone()
+        if preset.video_codec == "libx264" {
+            software_h264_encoder()
+        } else {
+            preset.video_codec.clone()
+        }
     }
+}
+
+fn software_h264_encoder() -> String {
+    static ENCODER: OnceLock<String> = OnceLock::new();
+    ENCODER
+        .get_or_init(|| {
+            process::run_ffmpeg(&["-hide_banner", "-encoders"])
+                .ok()
+                .map(|output| {
+                    format!(
+                        "{}\n{}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr)
+                    )
+                })
+                .map(|output| preferred_software_h264_encoder(&output).to_string())
+                .unwrap_or_else(|| "libx264".to_string())
+        })
+        .clone()
+}
+
+fn preferred_software_h264_encoder(output: &str) -> &'static str {
+    let supports = |encoder| {
+        output.lines().any(|line| {
+            let mut fields = line.split_whitespace();
+            fields.next().is_some_and(|flags| flags.starts_with('V'))
+                && fields.next() == Some(encoder)
+        })
+    };
+    if supports("libx264") {
+        "libx264"
+    } else if supports("libopenh264") {
+        "libopenh264"
+    } else {
+        // Kept for unusual custom presets/builds. Bundled FFmpeg always has x264.
+        "libx264"
+    }
+}
+
+fn openh264_target_bitrate_kbps(
+    width: Option<u32>,
+    height: Option<u32>,
+    crf: u8,
+    maxrate_kbps: Option<u32>,
+) -> u32 {
+    if let Some(maxrate) = maxrate_kbps {
+        return maxrate;
+    }
+    let pixels = u64::from(width.unwrap_or(1920)) * u64::from(height.unwrap_or(1080));
+    let scale = pixels as f64 / (1920.0 * 1080.0) * 2.0_f64.powf((20.0 - crf as f64) / 6.0);
+    (8000.0 * scale).round().clamp(500.0, 100_000.0) as u32
+}
+
+fn openh264_bitrate_argument(kbps: u32) -> String {
+    format!("{kbps}k")
 }
 
 fn encoder_rate_control_args(
@@ -664,6 +734,41 @@ fn ensure_success(output: &std::process::Output) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prefers_x264_but_uses_openh264_when_x264_is_missing() {
+        assert_eq!(
+            preferred_software_h264_encoder(" V....D libopenh264 OpenH264\n V....D libx264 H.264"),
+            "libx264"
+        );
+        assert_eq!(
+            preferred_software_h264_encoder(" V....D libopenh264 OpenH264"),
+            "libopenh264"
+        );
+        assert_eq!(
+            preferred_software_h264_encoder(" V....D h264_amf AMD H.264"),
+            "libx264"
+        );
+    }
+
+    #[test]
+    fn openh264_bitrate_respects_resolution_quality_and_cap() {
+        assert_eq!(
+            openh264_target_bitrate_kbps(Some(1920), Some(1080), 20, None),
+            8000
+        );
+        assert!(openh264_target_bitrate_kbps(Some(1280), Some(720), 20, None) < 8000);
+        assert_eq!(
+            openh264_target_bitrate_kbps(None, None, 20, Some(4000)),
+            4000
+        );
+        assert_eq!(openh264_target_bitrate_kbps(None, None, 20, Some(100)), 100);
+    }
+
+    #[test]
+    fn openh264_bitrate_argument_uses_kilobits_per_second_units() {
+        assert_eq!(openh264_bitrate_argument(8000), "8000k");
+    }
 
     #[test]
     fn amf_rate_control_uses_peak_vbr_when_preset_has_a_cap() {

@@ -855,7 +855,7 @@
   }
   .home-submit:disabled {
     opacity: 0.55;
-    cursor: wait;
+    cursor: not-allowed;
   }
   .home-submit-icon {
     flex-shrink: 0;

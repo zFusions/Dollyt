@@ -221,15 +221,15 @@ fn installed_ffmpeg_tool_present(dest: &Path) -> bool {
         return true;
     }
 
-    // Migrate existing installations once. Keep a compatible local build and
-    // only replace the old LGPL build when it actually lacks libx264.
-    if ffmpeg_supports_libx264(dest) {
+    // Migrate existing installations once. Keep compatible local builds with
+    // either supported software H.264 encoder.
+    if ffmpeg_supports_software_h264(dest) {
         return fs::write(build_marker, PINNED_FFMPEG_BUILD).is_ok();
     }
     false
 }
 
-fn ffmpeg_supports_libx264(executable: &Path) -> bool {
+fn ffmpeg_supports_software_h264(executable: &Path) -> bool {
     let mut command = std::process::Command::new(executable);
     command.args(["-hide_banner", "-encoders"]);
     #[cfg(windows)]
@@ -239,8 +239,24 @@ fn ffmpeg_supports_libx264(executable: &Path) -> bool {
     }
     command.output().is_ok_and(|output| {
         output.status.success()
-            && (String::from_utf8_lossy(&output.stdout).contains("libx264")
-                || String::from_utf8_lossy(&output.stderr).contains("libx264"))
+            && encoder_list_supports_software_h264(&format!(
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ))
+    })
+}
+
+fn encoder_list_supports_software_h264(output: &str) -> bool {
+    output.lines().any(|line| {
+        let mut fields = line.split_whitespace();
+        let Some(flags) = fields.next() else {
+            return false;
+        };
+        let Some(name) = fields.next() else {
+            return false;
+        };
+        flags.starts_with('V') && matches!(name, "libx264" | "libopenh264")
     })
 }
 
@@ -508,6 +524,19 @@ mod tests {
         fs::remove_file(&path).unwrap();
         fs::remove_file(path.with_extension("sha256")).unwrap();
         fs::remove_file(path.with_extension("build")).unwrap();
+    }
+
+    #[test]
+    fn accepts_libopenh264_as_a_software_h264_encoder() {
+        assert!(encoder_list_supports_software_h264(
+            " V....D libopenh264 OpenH264 H.264 / AVC / MPEG-4 AVC"
+        ));
+        assert!(encoder_list_supports_software_h264(
+            " V....D libx264 libx264 H.264 / AVC"
+        ));
+        assert!(!encoder_list_supports_software_h264(
+            " V....D h264_amf AMD AMF H.264"
+        ));
     }
 
     #[test]

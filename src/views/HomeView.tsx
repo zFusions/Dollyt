@@ -19,12 +19,14 @@ import { normalizeYoutubeUrl, validateYoutubeUrl } from "../lib/validateUrl";
 import { useDollytStore } from "../store";
 import { backendText, t } from "../i18n";
 import { takeBufferedJobEvents } from "../lib/jobEventBuffer.mjs";
+import { shouldTrackNewJobAsActive } from "../lib/jobQueueRouting.mjs";
 
 export function HomeView({ toolsReady = true }: { toolsReady?: boolean }) {
   const url = useDollytStore((s) => s.url);
   const setUrl = useDollytStore((s) => s.setUrl);
   const setVideo = useDollytStore((s) => s.setVideo);
   const setStoryboard = useDollytStore((s) => s.setStoryboard);
+  const setDownloadProgress = useDollytStore((s) => s.setDownloadProgress);
   const setStatus = useDollytStore((s) => s.setStatus);
   const status = useDollytStore((s) => s.status);
   const go = useDollytStore((s) => s.go);
@@ -68,6 +70,7 @@ export function HomeView({ toolsReady = true }: { toolsReady?: boolean }) {
     setError("");
     setBusy(true);
     go("download");
+    setDownloadProgress("metadata", null);
     setVideo(null);
     setStoryboard(null);
     try {
@@ -111,9 +114,11 @@ export function HomeView({ toolsReady = true }: { toolsReady?: boolean }) {
         presetId: selectedPresetId,
       });
       const st = useDollytStore.getState();
-      const isActive =
-        st.activeJobId === null &&
-        !st.jobs.some((job) => job.state === "running");
+      const existingJobs = st.jobs;
+      const startsAtHead = shouldTrackNewJobAsActive(
+        st.activeJobId,
+        existingJobs,
+      );
       st.addJob({
         id: jobId,
         url: target,
@@ -124,14 +129,29 @@ export function HomeView({ toolsReady = true }: { toolsReady?: boolean }) {
         endSecs: end,
         stage: "",
         percent: 0,
-        state: isActive ? "running" : "queued",
+        state: startsAtHead ? "running" : "queued",
         message: "",
         outputPath: "",
         previewPath: "",
       });
-      st.setActiveJob(jobId);
-      st.beginDownload();
       const earlyEvents = takeBufferedJobEvents(jobId);
+      const latest = useDollytStore.getState();
+      const isActive = shouldTrackNewJobAsActive(
+        latest.activeJobId,
+        existingJobs,
+        earlyEvents,
+        jobId,
+      );
+      if (isActive) {
+        latest.setActiveJob(jobId);
+        latest.beginDownload();
+        const current = useDollytStore.getState().jobs.find((job) => job.id === jobId);
+        if (current?.stage) {
+          useDollytStore.getState().setDownloadProgress(current.stage, current.percent);
+        }
+      } else {
+        go("queue");
+      }
       if (earlyEvents?.progress) {
         st.updateJob(jobId, {
           stage: earlyEvents.progress.stage,
@@ -143,7 +163,7 @@ export function HomeView({ toolsReady = true }: { toolsReady?: boolean }) {
           earlyEvents.progress.percent,
         );
       }
-      if (earlyEvents?.finished) {
+      if (isActive && earlyEvents?.finished) {
         const { ok, message, outputPath, previewPath } = earlyEvents.finished;
         st.finishJob(jobId, ok, message, previewPath ?? "", outputPath ?? "");
         if (ok && outputPath) {

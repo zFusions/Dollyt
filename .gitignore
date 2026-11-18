@@ -4,6 +4,7 @@ playwright-report/
 dist/
 src-tauri/target/
 src-tauri/gen/
+installer/runtime-tools/
 *.log
 .env
 .env.*

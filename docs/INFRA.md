@@ -1,20 +1,20 @@
 # Infra Dollyt (hors interface)
 
-État au 2026-11-18 : release publique v1.2.2; FFmpeg inclut `libx264`, les téléchargements d'extraits utilisent la progression yt-dlp et l'updater réutilise la version déjà vérifiée. L'éditeur timeline existe mais est **quarantiné** (`src/editorAvailability.ts` → `EDITOR_QUARANTINED = true`).
+État au 2026-11-18 : v1.2.2 est publiée; le candidat local v1.2.3 attend le test utilisateur. L'installateur Windows inclut les outils vidéo vérifiés et les copie dans `%LOCALAPPDATA%` pendant le setup; le lancement ne télécharge ni ne re-hashe les outils installés. Les exports réutilisent les métadonnées récentes, bornent les délais réseau yt-dlp et adaptent l'encodeur H.264 logiciel disponible. L'éditeur timeline existe mais est **quarantiné** (`src/editorAvailability.ts` → `EDITOR_QUARANTINED = true`).
 
 ## Rust (`src-tauri/src/`)
 
 | Module | Rôle |
 |--------|------|
-| `bins` | `%LOCALAPPDATA%\Dollyt\bin` — téléchargements initiaux épinglés et vérifiés par SHA-256; un marqueur de build FFmpeg déclenche une migration unique vers un binaire avec `libx264` si l'existant en est dépourvu; yt-dlp garde un marqueur de version validée |
+| `bins` | `%LOCALAPPDATA%\Dollyt\bin` — l'installateur NSIS copie les outils depuis des ressources intégrées; téléchargement épinglé et contrôlé par SHA-256 en secours; le marqueur FFmpeg déclenche une migration unique vers `libx264` ou `libopenh264`; yt-dlp garde son marqueur de version validée |
 | `commands` | Surface Tauri : `initialize_tools`, `load_video`, `resolve_preview_url`, `start/cancel_local_preview`, `get_timeline_filmstrip(_master)`, `release_preview_cache`, settings, presets, `update_ytdlp`, `pick_export_directory`, `start_cut_job_command`, `reveal_file` |
 | `format` | Choix des formats yt-dlp : preview muxée (itag 18) + formats HQ pour export |
 | `ffmpeg` | Coupe exacte de plage, export selon preset (x264 CRF / copie de flux, audio AAC) |
-| `jobs` | Un job à la fois : load → téléchargement yt-dlp avec progression réelle → découpe/encode local → `job-progress` / `job-finished` events; les presets intégrés et utilisateur sont résolus côté worker |
+| `jobs` | Un job à la fois : métadonnées réutilisées depuis un cache local borné à 8 URL/5 min → téléchargement yt-dlp avec progression réelle → découpe/encode local → `job-progress` / `job-finished`; l'annulation et le job actif sont synchronisés |
 | `presets` | 10 JSON embarqués (`src-tauri/presets/`) + presets JSON utilisateur `%LOCALAPPDATA%\Dollyt\presets`; les IDs intégrés ont priorité sur les collisions |
 | `settings` | `settings.json` : dossier export, gabarit global (le gabarit par défaut du preset reste actif), matériel NVENC/AMF, dev CRF/fps/audio/x264, langue, auto-update app/yt-dlp, version ignorée |
 | `storyboard` | Extraction sb0–sb3 depuis les métadonnées yt-dlp (timeline, quarantain) |
-| `ytdlp` | Wrapper yt-dlp via Deno : `-J` metadata, téléchargement natif pour publier une progression réelle, détection cookies Firefox/fichier et mapping erreurs |
+| `ytdlp` | Wrapper yt-dlp via Deno : `-J` metadata en cache court, téléchargement natif pour publier une progression réelle, délais réseau/réessais bornés, détection cookies Firefox/fichier et mapping erreurs |
 | `error` | Messages d'erreur normalisés (`yt-dlp a échoué`, `ffmpeg a échoué`, …) — traduits côté front via `backendText()` |
 | `log` | Rotation ~2 Mo → `.1.log`, URLs masquées |
 
@@ -32,14 +32,14 @@
 - `i18n.ts` : FR/EN, `t()` partout, `backendText()` traduit les messages d'erreur Rust à l'affichage.
 - `lib/presetsUi.ts` : noms/briefs/specs localisés, évalués au rendu (le changement de langue est immédiat).
 - Vues : `HomeView` (URL + preset + clip/full), `DownloadView` (Snake loader + progression lissée ~2 %/tick + preview du résultat), `PresetsView`, `SettingsView`, `QueueView` (file et historique), `EditorView`/`EditorOpeningView` (quarantinés).
-- L'interface s'ouvre immédiatement pendant l'initialisation des outils; l'export reste désactivé jusqu'à leur disponibilité. Une page de retry apparaît seulement si la préparation échoue. Les téléchargements initiaux vérifient les hashes; les marqueurs évitent les checks coûteux aux lancements suivants. L'auto-update yt-dlp tourne en arrière-plan si l'option est activée.
+- Les outils sont installés dans le setup NSIS; l'initialisation ne fait que lire les marqueurs locaux et n'effectue aucun téléchargement réseau. Une récupération depuis GitHub reste disponible si un outil manque. Les hashes sont calculés au packaging et les marqueurs évitent une vérification complète à chaque démarrage. L'auto-update yt-dlp tourne en arrière-plan si l'option est activée.
 - `SnakeGame` : mini-jeu canvas dans les loaders (pommes, wrap-around, clavier non intrusif).
 - `useAppUpdater` + `UpdateDialog` : check GitHub releases, `latest.json` signé minisign, ignorer/version, notes de release formatées.
 
 ## Distribution
 
 - CI `ci.yml` : npm audit, build front, `cargo test --locked`, clippy, fmt, E2E Playwright mock, RustSec audit.
-- Release `release.yml` : tag `vX.Y.Z` → build Windows x64 NSIS + `latest.json` (signature updater Tauri, clé dans `tauri.conf.json`).
+- Release `release.yml` : vérifie la version du tag et exécute les contrôles Node, npm, Rust, E2E et outils avant de produire Windows x64 NSIS + `latest.json` signé.
 - Auto-update : `@tauri-apps/plugin-updater` + `plugin-process` (relaunch). Settings : auto-update app, auto-update yt-dlp, « Vérifier maintenant », version ignorée.
 
 ## Volontairement reporté / hors scope

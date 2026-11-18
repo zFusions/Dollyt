@@ -52,7 +52,7 @@
 ## Quick start
 
 1. Download the [latest Windows installer](https://github.com/zFusions/Dollyt/releases/latest) and run it (WebView2 Runtime required).
-2. On first launch, Dollyt downloads yt-dlp, FFmpeg, ffprobe and Deno from official GitHub releases in the background. Initial pinned downloads are SHA-256 checked. The preparation screen is only needed while tools are being installed or recovered. Later launches use local install markers instead of hashing or running version checks again. Export is enabled when setup finishes; if setup fails, retry it in the app.
+2. The Windows setup installs yt-dlp, FFmpeg, ffprobe and Deno from pinned, SHA-256-verified packages. The first app launch reuses those local files without downloading or rechecking them. If a tool is missing or damaged, Dollyt can recover it from the official GitHub releases.
 3. Paste a YouTube URL, pick a preset, export.
 
 ## Requirements
@@ -92,7 +92,7 @@ The React frontend owns navigation, export state and history. Tauri commands for
 
 ## Privacy and legal notice
 
-Dollyt has no server, no telemetry and no account system. Network traffic goes to YouTube/googlevideo for media work and to GitHub for initial tool downloads, yt-dlp updates and application updates. Initial tool packages are pinned and hash-checked; yt-dlp self-updates use the latest official GitHub release and validate the reported version because yt-dlp does not sign its binary. Use Dollyt only on content you're allowed to download and process. Dollyt is not affiliated with YouTube and does not bypass DRM.
+Dollyt has no server, no telemetry and no account system. Network traffic goes to YouTube/googlevideo for media work and to GitHub for application updates, explicit yt-dlp updates and recovery when a local tool is missing. The setup bundles pinned tool packages verified by SHA-256; yt-dlp self-updates use the latest official GitHub release and validate the reported version because yt-dlp does not sign its binary. Use Dollyt only on content you're allowed to download and process. Dollyt is not affiliated with YouTube and does not bypass DRM.
 
 ## Contributing
 

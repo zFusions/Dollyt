@@ -7,6 +7,7 @@ import { useDollytStore, type ExportJob, type HistoryEntry } from "../store";
 
 const STAGE_KEYS: Record<string, Parameters<typeof t>[0]> = {
   validation: "preparingVideo",
+  metadata: "analyzingVideo",
   download: "downloadingVideo",
   encode: "creatingClip",
   done: "done",
