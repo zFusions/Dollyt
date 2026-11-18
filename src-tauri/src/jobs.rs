@@ -306,6 +306,7 @@ fn run_cut_job(
     // real progress, so it is kept only when the clip is nearly the whole
     // video and section mode would save almost nothing.
     let use_sections = should_use_sections(end_secs - start_secs, info.duration_secs);
+    let section_duration = end_secs - start_secs + 6.0;
     let download = ytdlp::download_section_cancellable(
         &url,
         &dl_format,
@@ -316,6 +317,7 @@ fn run_cut_job(
         cancel,
         child_slot,
         Some(on_progress),
+        section_duration,
     )
     .map_err(|e| e.to_string())?;
     let _section_guard = TempFileGuard(std::path::PathBuf::from(download.path.as_str()));

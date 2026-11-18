@@ -195,6 +195,7 @@ pub fn start_local_preview(
                 );
             }
         });
+        let section_duration = if full { 0.0 } else { end - start + 2.0 };
         let Ok(dl) = ytdlp::download_section_cancellable(
             &url,
             &format_id,
@@ -205,6 +206,7 @@ pub fn start_local_preview(
             cancel.as_ref(),
             &slot,
             Some(on_progress),
+            section_duration,
         ) else {
             if cancel.load(Ordering::SeqCst) {
                 return;
