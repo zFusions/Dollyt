@@ -7,6 +7,7 @@
 - Reuses recent video metadata instead of requesting it twice for one export.
 - Keeps queue progress associated with the active export and closes a cancellation race between queue handoff and process start.
 - Downloads only the requested time range when a clip covers less than most of the source video, avoiding full-length downloads for short excerpts.
+- Reports download progress from FFmpeg time estimates when yt-dlp uses section mode, so clip exports show a real percentage instead of staying indeterminate.
 
 ### Improved
 

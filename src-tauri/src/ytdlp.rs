@@ -12,6 +12,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
+use std::io::Read;
+
 pub type ProgressFn = Arc<dyn Fn(Option<u8>) + Send + Sync>;
 
 const METADATA_CACHE_TTL: Duration = Duration::from_secs(5 * 60);
@@ -267,6 +269,7 @@ pub fn download_section_cancellable(
     cancel: &AtomicBool,
     child_slot: &Arc<Mutex<Option<Child>>>,
     on_progress: Option<ProgressFn>,
+    section_target_duration_secs: f64,
 ) -> Result<DownloadResult> {
     if !valid_format_selector(format_id) {
         return Err(DollytError::YtdlpFailed(
@@ -321,7 +324,10 @@ pub fn download_section_cancellable(
             let pct_bg = Arc::clone(&pct);
             let has_progress_bg = Arc::clone(&has_progress);
             let tail_bg = Arc::clone(&stderr_tail);
-            thread::spawn(move || read_ytdlp_stderr(stderr, pct_bg, has_progress_bg, tail_bg))
+            let section_duration = section_target_duration_secs;
+            thread::spawn(move || {
+                read_ytdlp_stderr(stderr, pct_bg, has_progress_bg, tail_bg, section_duration)
+            })
         });
         let mut readers = [stdout_reader, stderr_reader]
             .into_iter()
@@ -391,22 +397,45 @@ fn read_ytdlp_stderr(
     pct: Arc<AtomicU8>,
     has_progress: Arc<AtomicBool>,
     tail: Arc<Mutex<Vec<String>>>,
+    section_target_duration_secs: f64,
 ) {
-    let reader = BufReader::new(stderr);
-    for line in reader.lines().map_while(|l| l.ok()) {
-        if let Some(value) = parse_ytdlp_percent(&line) {
-            pct.store(value, Ordering::Relaxed);
-            has_progress.store(true, Ordering::Relaxed);
-        }
-        crate::log::log_line(&format!("yt-dlp: {}", line.trim()));
-        if let Ok(mut t) = tail.lock() {
-            let line = line.trim().to_string();
-            if !line.is_empty() {
-                t.push(line);
-                if t.len() > 12 {
-                    t.remove(0);
+    let mut buf = [0u8; 8192];
+    let mut partial = String::new();
+    let mut stderr_handle = stderr;
+    loop {
+        match stderr_handle.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                let chunk = String::from_utf8_lossy(&buf[..n]);
+                partial.push_str(&chunk);
+                for line in partial.split_inclusive(['\n', '\r']) {
+                    let line = line.trim();
+                    if line.is_empty() {
+                        continue;
+                    }
+                    if let Some(value) = parse_ytdlp_percent(line) {
+                        pct.store(value, Ordering::Relaxed);
+                        has_progress.store(true, Ordering::Relaxed);
+                    } else if let Some(time) = parse_ffmpeg_time(line)
+                        && section_target_duration_secs > 0.0
+                    {
+                        let pct_val =
+                            ((time / section_target_duration_secs).clamp(0.0, 1.0) * 100.0) as u8;
+                        pct.store(pct_val, Ordering::Relaxed);
+                        has_progress.store(true, Ordering::Relaxed);
+                    }
+                    crate::log::log_line(&format!("yt-dlp: {}", line));
+                    if let Ok(mut t) = tail.lock() {
+                        let line = line.to_string();
+                        if t.len() > 12 {
+                            t.remove(0);
+                        }
+                        t.push(line);
+                    }
                 }
+                partial.clear();
             }
+            Err(_) => break,
         }
     }
 }
@@ -424,6 +453,18 @@ fn read_ytdlp_progress(
             crate::log::log_line(&format!("yt-dlp: {}", line.trim()));
         }
     }
+}
+
+fn parse_ffmpeg_time(line: &str) -> Option<f64> {
+    let line = line.trim();
+    let rest = line.strip_prefix("time=")?;
+    let time_str = rest.split_whitespace().next()?;
+    let mut total = 0.0;
+    for part in time_str.split(':') {
+        let val = part.parse::<f64>().ok()?;
+        total = total * 60.0 + val;
+    }
+    Some(total)
 }
 
 fn parse_ytdlp_percent(line: &str) -> Option<u8> {
@@ -601,6 +642,14 @@ mod tests {
     }
 
     #[test]
+    fn parses_ffmpeg_time_from_progress_line() {
+        assert_eq!(parse_ffmpeg_time("time=00:00:05.20"), Some(5.2));
+        assert_eq!(parse_ffmpeg_time("time=01:02:03.00"), Some(3723.0));
+        assert_eq!(parse_ffmpeg_time("time=120.50"), Some(120.5));
+        assert_eq!(parse_ffmpeg_time("frame=242 fps=0.0"), None);
+    }
+
+    #[test]
     fn picks_format_18_first() {
         let json = fs::read_to_string("fixtures/m0_metadata.json").expect("fixture");
         let value: Value = serde_json::from_str(&json).expect("json");
@@ -706,6 +755,7 @@ mod tests {
             &cancel,
             &child_slot,
             Some(on_progress),
+            0.0,
         )
         .expect("téléchargement");
         let progress_values = progress_values.lock().unwrap();
