@@ -457,7 +457,7 @@ fn read_ytdlp_progress(
 
 fn parse_ffmpeg_time(line: &str) -> Option<f64> {
     let line = line.trim();
-    let rest = line.strip_prefix("time=")?;
+    let rest = line.split("time=").nth(1)?;
     let time_str = rest.split_whitespace().next()?;
     let mut total = 0.0;
     for part in time_str.split(':') {
@@ -647,6 +647,8 @@ mod tests {
         assert_eq!(parse_ffmpeg_time("time=01:02:03.00"), Some(3723.0));
         assert_eq!(parse_ffmpeg_time("time=120.50"), Some(120.5));
         assert_eq!(parse_ffmpeg_time("frame=242 fps=0.0"), None);
+        assert_eq!(parse_ffmpeg_time("frame=  111 fps=0.0 q=-1.0 size=     107KiB time=-00:00:01.16 bitrate=N/A speed=N/A elapsed=0:00:00.50"), Some(1.16));
+        assert_eq!(parse_ffmpeg_time("frame= 417 fps= 85 q=-1.0 size=   2304KiB time=00:00:13.48 bitrate=1205.5kbits/s speed=1.25x elapsed=0:00:11.15"), Some(13.48));
     }
 
     #[test]
