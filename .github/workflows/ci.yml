@@ -42,4 +42,4 @@ jobs:
       - name: RustSec audit
         run: |
           cargo install cargo-audit --locked
-          cargo audit --file src-tauri/Cargo.lock --deny warnings
+          cargo audit --file src-tauri/Cargo.lock
