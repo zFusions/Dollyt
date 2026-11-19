@@ -7,27 +7,27 @@
 ytdlp_exists:
   IfFileExists "$LOCALAPPDATA\Dollyt\bin\yt-dlp.verified" ytdlp_done 0
 install_ytdlp:
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\yt-dlp.exe" "$LOCALAPPDATA\Dollyt\bin\yt-dlp.exe"
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\yt-dlp.exe" "$LOCALAPPDATA\Dollyt\bin\yt-dlp.exe"
   IfErrors runtime_tools_install_failed 0
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\yt-dlp.verified" "$LOCALAPPDATA\Dollyt\bin\yt-dlp.verified"
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\yt-dlp.verified" "$LOCALAPPDATA\Dollyt\bin\yt-dlp.verified"
   IfErrors runtime_tools_install_failed 0
 ytdlp_done:
 
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\ffmpeg.exe" "$LOCALAPPDATA\Dollyt\bin\ffmpeg.exe"
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\ffmpeg.exe" "$LOCALAPPDATA\Dollyt\bin\ffmpeg.exe"
   IfErrors runtime_tools_install_failed 0
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\ffmpeg.sha256" "$LOCALAPPDATA\Dollyt\bin\ffmpeg.sha256"
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\ffmpeg.sha256" "$LOCALAPPDATA\Dollyt\bin\ffmpeg.sha256"
   IfErrors runtime_tools_install_failed 0
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\ffmpeg.build" "$LOCALAPPDATA\Dollyt\bin\ffmpeg.build"
-  IfErrors runtime_tools_install_failed 0
-
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\ffprobe.exe" "$LOCALAPPDATA\Dollyt\bin\ffprobe.exe"
-  IfErrors runtime_tools_install_failed 0
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\ffprobe.sha256" "$LOCALAPPDATA\Dollyt\bin\ffprobe.sha256"
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\ffmpeg.build" "$LOCALAPPDATA\Dollyt\bin\ffmpeg.build"
   IfErrors runtime_tools_install_failed 0
 
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\deno.exe" "$LOCALAPPDATA\Dollyt\bin\deno.exe"
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\ffprobe.exe" "$LOCALAPPDATA\Dollyt\bin\ffprobe.exe"
   IfErrors runtime_tools_install_failed 0
-  CopyFiles /SILENT "$INSTDIR\resources\runtime-tools\deno.sha256" "$LOCALAPPDATA\Dollyt\bin\deno.sha256"
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\ffprobe.sha256" "$LOCALAPPDATA\Dollyt\bin\ffprobe.sha256"
+  IfErrors runtime_tools_install_failed 0
+
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\deno.exe" "$LOCALAPPDATA\Dollyt\bin\deno.exe"
+  IfErrors runtime_tools_install_failed 0
+  CopyFiles /SILENT "$INSTDIR\runtime-tools\deno.sha256" "$LOCALAPPDATA\Dollyt\bin\deno.sha256"
   IfErrors runtime_tools_install_failed 0
   Goto runtime_tools_install_done
 
