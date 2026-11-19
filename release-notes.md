@@ -8,6 +8,8 @@
 - Keeps queue progress associated with the active export and closes a cancellation race between queue handoff and process start.
 - Downloads only the requested time range when a clip covers less than most of the source video, avoiding full-length downloads for short excerpts.
 - Reports download progress from FFmpeg time estimates when yt-dlp uses section mode, so clip exports show a real percentage instead of staying indeterminate.
+- Parses FFmpeg time estimates from stderr lines where the time field appears in the middle of the line, not just at the start.
+- Filters progress events by job ID in the editor view and resets the progress display when a different job becomes active, preventing another export's percentage from being shown.
 
 ### Improved
 

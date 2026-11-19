@@ -36,6 +36,7 @@ export function EditorView() {
   const playheadSecs = useDollytStore((s) => s.playheadSecs);
   const status = useDollytStore((s) => s.status);
   const jobPercent = useDollytStore((s) => s.jobPercent);
+  const activeJobId = useDollytStore((s) => s.activeJobId);
   const setRangeSecs = useDollytStore((s) => s.setRangeSecs);
   const setPlayhead = useDollytStore((s) => s.setPlayhead);
   const setStatus = useDollytStore((s) => s.setStatus);
@@ -267,7 +268,11 @@ export function EditorView() {
       if (n > 0 && n < 100) setFetchingPreview(true);
       if (n >= 100) setFetchingPreview(false);
     }).then((u) => unsubs.push(u));
-    listen<{ percent: number | null; stage: string }>("job-progress", (event) => {
+    listen<{ jobId: number; percent: number | null; stage: string }>("job-progress", (event) => {
+      if (event.payload.jobId !== activeJobId) {
+        setJobPercent(0);
+        return;
+      }
       if (event.payload.percent === null) {
         setStatus(`${event.payload.stage} — ${t("progressUnavailable")}`);
         return;
@@ -299,7 +304,7 @@ export function EditorView() {
       setFetchingPreview(false);
     }).then((u) => unsubs.push(u));
     return () => unsubs.forEach((u) => u());
-  }, [patchVideo, setJobPercent, setStatus]);
+  }, [activeJobId, patchVideo, setJobPercent, setStatus]);
 
   useEffect(() => {
     const el = videoRef.current;
