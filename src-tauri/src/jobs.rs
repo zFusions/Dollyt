@@ -194,6 +194,15 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
             continue;
         };
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let clip_type = if request.start_secs == 0.0 && request.end_secs == 0.0 {
+                "vidéo entière".to_string()
+            } else {
+                format!("extrait {}s-{}s", request.start_secs, request.end_secs)
+            };
+            log::log_line(&format!(
+                "job {} démarré: lien={}, qualité={}, preset={}, {}",
+                request.job_id, request.raw_url, request.format_id, request.preset_id, clip_type
+            ));
             run_cut_job(
                 &app,
                 request.job_id,
