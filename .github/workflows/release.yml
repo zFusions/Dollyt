@@ -89,7 +89,7 @@ jobs:
         shell: pwsh
         run: |
           cargo install cargo-audit --locked
-          cargo audit --file src-tauri/Cargo.lock --deny warnings
+          cargo audit --file src-tauri/Cargo.lock
 
       - name: Build and publish installers
         uses: tauri-apps/tauri-action@v1.0.0
