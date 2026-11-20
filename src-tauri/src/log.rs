@@ -28,9 +28,12 @@ pub fn log_dir() -> PathBuf {
 
 pub fn log_line(message: &str) {
     let safe = redact_secrets(message);
-    let line = format!("{} {}", time_text(), safe.replace('\n', " "));
+    let line = format!("{} {}", time_text(), safe.replace(['\n', '\r'], " "));
     let dir = log_dir();
     if create_dir_all(&dir).is_ok() {
+        static WRITE_LOCK: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
+        let lock = WRITE_LOCK.get_or_init(|| std::sync::Mutex::new(()));
+        let _guard = lock.lock().unwrap_or_else(|error| error.into_inner());
         let path = dir.join("dollyt.log");
         maybe_rotate(&path);
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
@@ -101,7 +104,28 @@ pub(crate) fn redact_secrets(line: &str) -> String {
             out.replace_range(start..start + end, "<url>");
         }
     }
-    out
+    redact_cookie_paths(&out)
+}
+
+fn redact_cookie_paths(line: &str) -> String {
+    line.split_inclusive(char::is_whitespace)
+        .map(|token| {
+            let lower = token.to_ascii_lowercase();
+            if lower.contains("cookie")
+                && (lower.contains('\\') || lower.contains('/') || lower.contains(':'))
+            {
+                let space: String = token
+                    .chars()
+                    .rev()
+                    .take_while(|c| c.is_whitespace())
+                    .collect();
+                let space: String = space.chars().rev().collect();
+                format!("<cookies>{space}")
+            } else {
+                token.to_string()
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -124,5 +148,13 @@ mod tests {
         assert!(!s.contains("googlevideo"));
         assert!(!s.contains("192.0.2.1"));
         assert!(!s.contains("secret"));
+    }
+
+    #[test]
+    fn redacts_a_cookies_file_path() {
+        let s = redact_secrets(r"cookies introuvables C:\Users\ada\cookies.txt");
+        assert!(s.contains("<cookies>"));
+        assert!(!s.contains("Users"));
+        assert!(!s.contains("ada"));
     }
 }

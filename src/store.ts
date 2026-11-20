@@ -223,12 +223,11 @@ export const useDollytStore = create<DollytState>((set, get) => {
   },
   setDownloadProgress: (downloadStage, jobPercent) => {
     if (jobPercent === null) {
-      progressTarget = 0;
-      stopProgressPump();
-      set({ downloadState: "loading", downloadStage, jobPercent: null });
+      set({ downloadState: "loading", downloadStage });
       return;
     }
-    progressTarget = Math.min(100, Math.max(progressTarget, jobPercent));
+    const floor = get().jobPercent ?? 0;
+    progressTarget = Math.min(100, Math.max(progressTarget, floor, jobPercent));
     ensureProgressPump();
     set({ downloadState: "loading", downloadStage });
   },
@@ -260,9 +259,17 @@ export const useDollytStore = create<DollytState>((set, get) => {
     set((state) => ({ jobs: [...state.jobs, job] })),
   updateJob: (id, patch) =>
     set((state) => ({
-      jobs: state.jobs.map((job) =>
-        job.id === id ? { ...job, ...patch } : job,
-      ),
+      jobs: state.jobs.map((job) => {
+        if (job.id !== id) return job;
+        let percent = job.percent;
+        if (patch.percent !== undefined && patch.percent !== null) {
+          percent =
+            job.percent == null
+              ? patch.percent
+              : Math.max(job.percent, patch.percent);
+        }
+        return { ...job, ...patch, percent };
+      }),
     })),
   finishJob: (id, ok, message, previewPath = "", outputPath = "") =>
     set((state) => ({

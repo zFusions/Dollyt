@@ -12,11 +12,22 @@
 - Filters progress events by job ID in the editor view and resets the progress display when a different job becomes active, preventing another export's percentage from being shown.
 - Logs yt-dlp extraction messages that were previously discarded, so format analysis and download preparation are visible in the diagnostics.
 - Stops a download after two minutes without any data from yt-dlp instead of waiting indefinitely, and reports a recoverable connection error.
+- Aligns odd source dimensions before local quality exports so libx264 no longer fails on width or height that is not divisible by two.
+- Ignores negative FFmpeg time stamps so export progress does not jump backward during section downloads.
+- Points yt-dlp section downloads at the bundled FFmpeg instead of whatever happens to be on the system PATH.
+- Removes partial output files when FFmpeg fails and skips audio encoding when the source has no audio track.
+- Rejects audio-only exports when the video has no audio, with a translated message instead of a raw FFmpeg error.
+- Keeps queue and download progress from decreasing when stages change or multiple jobs are listed.
+- Shows when YouTube stops sending data and when an HTTP 403 triggers a single retry.
+- Redacts cookie file paths in diagnostic logs and serializes log file writes to avoid interleaved lines.
 
 ### Improved
 
 - Bounds yt-dlp network socket waits and retry counts so stalled requests can fail with a recoverable error.
 - Shows a clear connection and format-analysis stage when YouTube has not provided a measurable download percentage yet.
+- Adds faststart to re-encoded MP4 exports for quicker in-app preview.
+- Scales vertical network presets to their configured resolution instead of a fixed 1080x1920 filter chain.
+- Updates QUALITY MAX and FLAC preset copy so it matches actual stream selection and YouTube audio limits.
 - Runs the full Node, npm, Rust, E2E and runtime-tool verification set before a tagged release build.
 
 Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).

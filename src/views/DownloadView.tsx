@@ -72,6 +72,8 @@ export function DownloadView() {
   const stages: Record<string, string> = {
     validation: t("preparingVideo"),
     metadata: t("analyzingVideo"),
+    waiting: t("waitingForData"),
+    retry: t("retryingDownload"),
     download: t("downloadingVideo"),
     encode: t("creatingClip"),
     done: t("done"),

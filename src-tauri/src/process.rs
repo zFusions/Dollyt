@@ -45,6 +45,9 @@ fn push_ytdlp_defaults(cmd: &mut Command) {
     let Some(tools) = bins::tools() else {
         return;
     };
+    // Sans ce chemin, yt-dlp prend le premier ffmpeg du PATH. Le binaire
+    // embarqué est celui dont le hash a été vérifié.
+    push_ffmpeg_location(cmd, &tools.ffmpeg);
     let deno = &tools.deno;
     if deno.is_file() {
         cmd.arg("--js-runtimes");
@@ -88,6 +91,13 @@ fn push_ytdlp_defaults(cmd: &mut Command) {
                     .any(|entry| entry.path().join("cookies.sqlite").is_file())
             })
         }
+    }
+}
+
+fn push_ffmpeg_location(cmd: &mut Command, ffmpeg: &Path) {
+    if ffmpeg.is_file() {
+        cmd.arg("--ffmpeg-location");
+        cmd.arg(ffmpeg);
     }
 }
 
@@ -174,5 +184,23 @@ mod tests {
                 "2",
             ]
         );
+    }
+
+    #[test]
+    fn ffmpeg_location_points_at_the_checked_binary() {
+        let dir = std::env::temp_dir().join(format!("dollyt-ffmpeg-loc-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let ffmpeg = dir.join("ffmpeg.exe");
+        std::fs::write(&ffmpeg, b"not-a-real-binary").unwrap();
+        let mut command = Command::new("yt-dlp");
+        push_ffmpeg_location(&mut command, &ffmpeg);
+        let args = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[0], "--ffmpeg-location");
+        assert_eq!(args[1], ffmpeg.to_string_lossy());
     }
 }

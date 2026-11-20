@@ -32,11 +32,13 @@ function stageLabel(stage: string): string {
   const labels: Record<string, string> = {
     validation: t("preparingVideo"),
     metadata: t("analyzingVideo"),
+    waiting: t("waitingForData"),
+    retry: t("retryingDownload"),
     download: t("downloadingVideo"),
     encode: t("creatingClip"),
     done: t("done"),
   };
-  return labels[stage] ?? stage;
+  return labels[stage] ?? t("preparingClip");
 }
 
 export function EditorView() {
@@ -280,19 +282,20 @@ export function EditorView() {
       if (n >= 100) setFetchingPreview(false);
     }).then((u) => unsubs.push(u));
     listen<{ jobId: number; percent: number | null; stage: string }>("job-progress", (event) => {
-      if (event.payload.jobId !== activeJobId) {
-        setJobPercent(0);
-        return;
-      }
+      if (event.payload.jobId !== activeJobId) return;
       const label = stageLabel(event.payload.stage);
       if (event.payload.percent === null) {
-        setStatus(`${label} — ${t("progressUnavailable")}`);
+        setStatus(`${label}. ${t("progressUnavailable")}`);
         return;
       }
-      setJobPercent(event.payload.percent);
-      setStatus(`${label} — ${event.payload.percent} %`);
+      const next = event.payload.percent;
+      const current = useDollytStore.getState().jobPercent ?? 0;
+      const shown = Math.max(current, next);
+      setJobPercent(shown);
+      setStatus(`${label}. ${shown} %`);
     }).then((u) => unsubs.push(u));
-    listen<{ ok: boolean; message: string }>("job-finished", (event) => {
+    listen<{ jobId: number; ok: boolean; message: string }>("job-finished", (event) => {
+      if (event.payload.jobId !== activeJobId) return;
       setJobPercent(event.payload.ok ? 100 : 0);
       setStatus(event.payload.message);
     }).then((u) => unsubs.push(u));

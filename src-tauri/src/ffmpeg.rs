@@ -112,6 +112,12 @@ fn export_section_impl(
         fs::create_dir_all(parent)?;
     }
     let file_start = probe_start_secs(input_path)?;
+    let has_audio = probe_has_audio(input_path).unwrap_or(true);
+    if preset.video_codec == "none" && !has_audio {
+        return Err(DollytError::FfmpegFailed(
+            "cette vidéo n'a pas de piste audio".into(),
+        ));
+    }
     let relative_start = (trim_start_secs - section_lo_secs + file_start).max(0.0);
     let duration = (trim_end_secs - trim_start_secs).max(0.0);
     if duration <= 0.0 {
@@ -208,11 +214,16 @@ fn export_section_impl(
             if vcodec != "copy" {
                 args.extend(["-pix_fmt", "yuv420p"]);
             }
-            args.extend(["-c:a", preset.audio_codec.as_str()]);
-            if !ab.is_empty() {
-                args.extend(["-b:a", ab.as_str()]);
+            if has_audio {
+                args.extend(["-c:a", preset.audio_codec.as_str()]);
+                if !ab.is_empty() {
+                    args.extend(["-b:a", ab.as_str()]);
+                }
             }
         }
+    }
+    if !stream_copy && matches!(preset.container.as_str(), "mp4" | "mov" | "m4a") {
+        args.extend(["-movflags", "+faststart"]);
     }
     let out_str = out_path.to_string_lossy();
     args.push(out_str.as_ref());
@@ -222,10 +233,20 @@ fn export_section_impl(
             as Arc<dyn Fn(f64) + Send + Sync>
     });
     let output = match cancel_ctx {
-        Some((cancel, slot)) => run_ffmpeg_cancellable(&args, cancel, slot, on_media_time)?,
-        None => process::run_ffmpeg(&args)?,
+        Some((cancel, slot)) => run_ffmpeg_cancellable(&args, cancel, slot, on_media_time),
+        None => process::run_ffmpeg(&args),
     };
-    ensure_success(&output)?;
+    let output = match output {
+        Ok(output) => output,
+        Err(error) => {
+            let _ = fs::remove_file(out_path);
+            return Err(error);
+        }
+    };
+    if let Err(error) = ensure_success(&output) {
+        let _ = fs::remove_file(out_path);
+        return Err(error);
+    }
     let elapsed_ms = start.elapsed().unwrap_or_default().as_millis() as u64;
     let output_duration_secs = probe_duration_secs(&out_str)?;
     Ok(CutResult {
@@ -462,16 +483,22 @@ fn encoder_rate_control_args(
 }
 
 fn video_filter_for_preset(preset: &Preset) -> Option<String> {
-    let w = preset.width?;
-    let h = preset.height?;
+    let Some(w) = preset.width else {
+        // libx264 + yuv420p refuse une dimension impaire. On aligne sans
+        // changer la taille quand elle est déjà paire.
+        // force_divisible_by ne s'applique que si force_original_aspect_ratio
+        // est aussi posé. Sur ce binaire, iw:ih + force_divisible_by laisse
+        // une taille impaire et libx264 refuse yuv420p.
+        return Some("scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p,setsar=1:1".into());
+    };
+    let h = preset.height.unwrap_or(0);
     if w == 0 || h == 0 {
         return None;
     }
     if preset.crop == "center" && w < h {
-        return Some(
-            "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,setsar=1:1"
-                .into(),
-        );
+        return Some(format!(
+            "scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},format=yuv420p,setsar=1:1"
+        ));
     }
     Some(format!(
         "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,format=yuv420p,setsar=1:1"
@@ -558,6 +585,22 @@ pub fn remux_preview_mp4(mkv_path: &str) -> Result<String> {
     ])?;
     ensure_success(&output)?;
     Ok(out.to_string_lossy().into_owned())
+}
+
+fn probe_has_audio(path: &str) -> Result<bool> {
+    let output = process::run_ffprobe(&[
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=index",
+        "-of",
+        "csv=p=0",
+        path,
+    ])?;
+    ensure_success(&output)?;
+    Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
 }
 
 fn probe_duration_secs(path: &str) -> Result<f64> {
@@ -715,7 +758,10 @@ fn last_ffmpeg_time(data: &[u8]) -> Option<f64> {
 }
 
 fn parse_hms(s: &str) -> Option<f64> {
-    let s = s.trim().trim_start_matches('-');
+    let s = s.trim();
+    if s.starts_with('-') {
+        return None;
+    }
     let mut it = s.split(':');
     let h: f64 = it.next()?.parse().ok()?;
     let m: f64 = it.next()?.parse().ok()?;
@@ -734,6 +780,7 @@ fn ensure_success(output: &std::process::Output) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::presets::Preset;
 
     #[test]
     fn prefers_x264_but_uses_openh264_when_x264_is_missing() {
@@ -768,6 +815,48 @@ mod tests {
     #[test]
     fn openh264_bitrate_argument_uses_kilobits_per_second_units() {
         assert_eq!(openh264_bitrate_argument(8000), "8000k");
+    }
+
+    fn preset(video: &str, crop: &str, width: Option<u32>, height: Option<u32>) -> Preset {
+        Preset {
+            id: "t".into(),
+            name: "t".into(),
+            container: "mp4".into(),
+            video_codec: video.into(),
+            audio_codec: "aac".into(),
+            crf: Some(18),
+            width,
+            height,
+            fps: None,
+            crop: crop.into(),
+            audio_bitrate_kbps: Some(192),
+            name_template: "{titre}".into(),
+            description: String::new(),
+            video_max_bitrate_kbps: None,
+        }
+    }
+
+    #[test]
+    fn edition_filter_forces_even_dimensions_without_resizing() {
+        let filter = video_filter_for_preset(&preset("libx264", "none", None, None)).unwrap();
+        assert!(filter.contains("trunc(iw/2)*2"));
+        assert!(!filter.contains("force_divisible_by"));
+        assert!(filter.contains("yuv420p"));
+    }
+
+    #[test]
+    fn vertical_crop_uses_the_preset_size() {
+        let filter =
+            video_filter_for_preset(&preset("libx264", "center", Some(720), Some(1280))).unwrap();
+        assert!(filter.contains("scale=720:1280"));
+        assert!(filter.contains("crop=720:1280"));
+        assert!(!filter.contains("1080:1920"));
+    }
+
+    #[test]
+    fn encode_progress_ignores_a_negative_ffmpeg_timestamp() {
+        assert_eq!(parse_hms("-00:00:01.16"), None);
+        assert_eq!(parse_hms("00:00:01.16"), Some(1.16));
     }
 
     #[test]
