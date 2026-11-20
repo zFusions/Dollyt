@@ -10,6 +10,8 @@
 - Reports download progress from FFmpeg time estimates when yt-dlp uses section mode, so clip exports show a real percentage instead of staying indeterminate.
 - Parses FFmpeg time estimates from stderr lines where the time field appears in the middle of the line, not just at the start.
 - Filters progress events by job ID in the editor view and resets the progress display when a different job becomes active, preventing another export's percentage from being shown.
+- Logs yt-dlp extraction messages that were previously discarded, so format analysis and download preparation are visible in the diagnostics.
+- Stops a download after two minutes without any data from yt-dlp instead of waiting indefinitely, and reports a recoverable connection error.
 
 ### Improved
 
