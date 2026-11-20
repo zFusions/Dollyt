@@ -4,15 +4,13 @@ use crate::process;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader};
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
-
-use std::io::Read;
 
 pub type ProgressFn = Arc<dyn Fn(Option<u8>) + Send + Sync>;
 
@@ -314,19 +312,32 @@ pub fn download_section_cancellable(
             tail.clear();
         }
 
+        // yt-dlp écrit toute sa sortie d'extraction sur stdout : sans lecture
+        // complète, un téléchargement peut rester muet des dizaines de
+        // secondes et ressembler à un blocage dans l'interface.
+        let last_output = Arc::new(Mutex::new(Instant::now()));
         let mut child = process::spawn_ytdlp(args)?;
         let stdout_reader = child.stdout.take().map(|stdout| {
             let pct_bg = Arc::clone(&pct);
             let has_progress_bg = Arc::clone(&has_progress);
-            thread::spawn(move || read_ytdlp_progress(stdout, pct_bg, has_progress_bg))
+            let activity_bg = Arc::clone(&last_output);
+            thread::spawn(move || read_ytdlp_progress(stdout, pct_bg, has_progress_bg, activity_bg))
         });
         let stderr_reader = child.stderr.take().map(|stderr| {
             let pct_bg = Arc::clone(&pct);
             let has_progress_bg = Arc::clone(&has_progress);
             let tail_bg = Arc::clone(&stderr_tail);
             let section_duration = section_target_duration_secs;
+            let activity_bg = Arc::clone(&last_output);
             thread::spawn(move || {
-                read_ytdlp_stderr(stderr, pct_bg, has_progress_bg, tail_bg, section_duration)
+                read_ytdlp_stderr(
+                    stderr,
+                    pct_bg,
+                    has_progress_bg,
+                    tail_bg,
+                    section_duration,
+                    activity_bg,
+                )
             })
         });
         let mut readers = [stdout_reader, stderr_reader]
@@ -345,6 +356,7 @@ pub fn download_section_cancellable(
             &pct,
             &has_progress,
             Arc::clone(&stderr_tail),
+            Arc::clone(&last_output),
             &mut readers,
             on_progress.clone(),
         )
@@ -398,6 +410,7 @@ fn read_ytdlp_stderr(
     has_progress: Arc<AtomicBool>,
     tail: Arc<Mutex<Vec<String>>>,
     section_target_duration_secs: f64,
+    last_output: Arc<Mutex<Instant>>,
 ) {
     let mut buf = [0u8; 8192];
     let mut partial = String::new();
@@ -406,10 +419,18 @@ fn read_ytdlp_stderr(
         match stderr_handle.read(&mut buf) {
             Ok(0) => break,
             Ok(n) => {
+                if let Ok(mut at) = last_output.lock() {
+                    *at = Instant::now();
+                }
                 let chunk = String::from_utf8_lossy(&buf[..n]);
                 partial.push_str(&chunk);
-                for line in partial.split_inclusive(['\n', '\r']) {
-                    let line = line.trim();
+                let mut end = 0;
+                for (idx, ch) in partial.char_indices() {
+                    if ch != '\n' && ch != '\r' {
+                        continue;
+                    }
+                    let line = partial[end..idx].trim();
+                    end = idx + ch.len_utf8();
                     if line.is_empty() {
                         continue;
                     }
@@ -424,7 +445,7 @@ fn read_ytdlp_stderr(
                         pct.store(pct_val, Ordering::Relaxed);
                         has_progress.store(true, Ordering::Relaxed);
                     }
-                    crate::log::log_line(&format!("yt-dlp: {}", line));
+                    crate::log::log_line(&format!("yt-dlp: {line}"));
                     if let Ok(mut t) = tail.lock() {
                         let line = line.to_string();
                         if t.len() > 12 {
@@ -433,10 +454,14 @@ fn read_ytdlp_stderr(
                         t.push(line);
                     }
                 }
-                partial.clear();
+                partial.drain(..end);
             }
             Err(_) => break,
         }
+    }
+    let tail_line = partial.trim();
+    if !tail_line.is_empty() {
+        crate::log::log_line(&format!("yt-dlp: {tail_line}"));
     }
 }
 
@@ -444,14 +469,43 @@ fn read_ytdlp_progress(
     stdout: std::process::ChildStdout,
     pct: Arc<AtomicU8>,
     has_progress: Arc<AtomicBool>,
+    last_output: Arc<Mutex<Instant>>,
 ) {
-    let reader = BufReader::new(stdout);
-    for line in reader.lines().map_while(|line| line.ok()) {
-        if let Some(value) = parse_ytdlp_percent(&line) {
-            pct.store(value, Ordering::Relaxed);
-            has_progress.store(true, Ordering::Relaxed);
-            crate::log::log_line(&format!("yt-dlp: {}", line.trim()));
+    let mut buf = [0u8; 8192];
+    let mut partial = String::new();
+    let mut stdout_handle = stdout;
+    loop {
+        match stdout_handle.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                if let Ok(mut at) = last_output.lock() {
+                    *at = Instant::now();
+                }
+                partial.push_str(&String::from_utf8_lossy(&buf[..n]));
+                let mut end = 0;
+                for (idx, ch) in partial.char_indices() {
+                    if ch != '\n' && ch != '\r' {
+                        continue;
+                    }
+                    let line = partial[end..idx].trim();
+                    end = idx + ch.len_utf8();
+                    if line.is_empty() {
+                        continue;
+                    }
+                    if let Some(value) = parse_ytdlp_percent(line) {
+                        pct.store(value, Ordering::Relaxed);
+                        has_progress.store(true, Ordering::Relaxed);
+                    }
+                    crate::log::log_line(&format!("yt-dlp: {line}"));
+                }
+                partial.drain(..end);
+            }
+            Err(_) => break,
         }
+    }
+    let tail = partial.trim();
+    if !tail.is_empty() {
+        crate::log::log_line(&format!("yt-dlp: {tail}"));
     }
 }
 
@@ -493,12 +547,16 @@ fn parse_ytdlp_percent(line: &str) -> Option<u8> {
         .map(|v| v.clamp(0.0, 100.0) as u8)
 }
 
+const STALL_TIMEOUT: Duration = Duration::from_secs(120);
+
+#[allow(clippy::too_many_arguments)]
 fn wait_child_slot(
     child_slot: &Arc<Mutex<Option<Child>>>,
     cancel: &AtomicBool,
     pct: &AtomicU8,
     has_progress: &AtomicBool,
     stderr_tail: Arc<Mutex<Vec<String>>>,
+    last_output: Arc<Mutex<Instant>>,
     readers: &mut Vec<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
 ) -> Result<()> {
@@ -512,6 +570,23 @@ fn wait_child_slot(
             }
             join_output_readers(readers);
             return Err(DollytError::Cancelled);
+        }
+        let stalled = last_output
+            .lock()
+            .map(|at| at.elapsed() > STALL_TIMEOUT)
+            .unwrap_or(false);
+        if stalled {
+            crate::log::log_line("téléchargement arrêté: aucune donnée reçue depuis 120 s");
+            if let Ok(mut guard) = child_slot.lock()
+                && let Some(child) = guard.take()
+            {
+                process::kill_process_tree(child.id());
+            }
+            join_output_readers(readers);
+            return Err(DollytError::YtdlpFailed(
+                "yt-dlp ne répond plus (aucune donnée depuis 120 s). Réessaie ou vérifie ta connexion."
+                    .into(),
+            ));
         }
         let status = {
             let mut guard = child_slot
