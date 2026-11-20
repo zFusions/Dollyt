@@ -334,7 +334,20 @@ export const useDollytStore = create<DollytState>((set, get) => {
     const hasActiveJob = get().jobs.some(
       (job) => job.state === "running" || job.state === "queued",
     );
-    if (!hasActiveJob) resetProgress(0);
+    let activeJobId = get().activeJobId;
+    if (!hasActiveJob) {
+      resetProgress(0);
+      activeJobId = null;
+    } else if (activeJobId != null) {
+      const tracked = get().jobs.find((job) => job.id === activeJobId);
+      if (
+        tracked &&
+        tracked.state !== "running" &&
+        tracked.state !== "queued"
+      ) {
+        activeJobId = null;
+      }
+    }
     set({
       screen: "home",
       url: "",
@@ -345,6 +358,7 @@ export const useDollytStore = create<DollytState>((set, get) => {
       downloadStage: "",
       downloadPath: "",
       downloadOutputPath: "",
+      activeJobId,
     });
   },
   goEditor: () => {

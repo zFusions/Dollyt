@@ -1,3 +1,20 @@
+## Dollyt 1.2.5
+
+### Fixed
+
+- Disables `--load-info-json` when using `--download-sections` so DASH clip exports no longer stall with expired fragment URLs (regression in 1.2.4).
+- Extends the yt-dlp stall watchdog to 300 seconds for section downloads instead of cutting at 120 seconds during long silent mux phases.
+- Maps queue job failures to `annulé` when the user cancelled even if the child process slot was already empty.
+- Clears the tracked export job when starting a new download so the previous job progress and file are not shown on the download screen.
+- Ignores late `job-progress` events for jobs that already finished, cancelled, or errored.
+- Resets stale `activeJobId` when returning home after a completed export.
+
+### Improved
+
+- Unit test ensures section downloads never combine `--load-info-json` with `--download-sections`.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.4
 
 ### Fixed
