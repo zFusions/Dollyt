@@ -67,6 +67,42 @@ fn maybe_rotate(path: &Path) {
 }
 
 fn time_text() -> String {
+    #[cfg(windows)]
+    {
+        if let Some(local) = local_time_windows() {
+            return local;
+        }
+    }
+    utc_time_text()
+}
+
+#[cfg(windows)]
+fn local_time_windows() -> Option<String> {
+    use std::mem::MaybeUninit;
+    #[repr(C)]
+    struct SystemTime {
+        year: u16,
+        month: u16,
+        day_of_week: u16,
+        day: u16,
+        hour: u16,
+        minute: u16,
+        second: u16,
+        milliseconds: u16,
+    }
+    unsafe extern "system" {
+        fn GetLocalTime(st: *mut SystemTime);
+    }
+    let mut st = MaybeUninit::<SystemTime>::uninit();
+    unsafe { GetLocalTime(st.as_mut_ptr()) };
+    let st = unsafe { st.assume_init() };
+    Some(format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        st.year, st.month, st.day, st.hour, st.minute, st.second
+    ))
+}
+
+fn utc_time_text() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())

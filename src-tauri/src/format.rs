@@ -85,11 +85,7 @@ pub fn pick_download_formats(formats: &[Value]) -> Option<FormatSelection> {
                 })
         })?;
     let video_id = video.get("format_id")?.as_str()?.to_string();
-    let audio = formats
-        .iter()
-        .find(|f| format_id_is(f, "251"))
-        .or_else(|| formats.iter().find(|f| format_id_is(f, "140")))
-        .or_else(|| best_audio_only(formats));
+    let audio = pick_preferred_audio(formats, &["251", "140"]).or_else(|| best_audio_only(formats));
     let audio_id = audio
         .and_then(|f| f.get("format_id"))
         .and_then(|v| v.as_str().map(String::from));
@@ -206,6 +202,16 @@ fn is_video_https(format: &Value) -> bool {
 
 fn format_id_is(format: &Value, id: &str) -> bool {
     format.get("format_id").and_then(|v| v.as_str()) == Some(id)
+}
+
+/// Préfère un id audio exact ; évite les dérivés type `251-18` tant que `251` existe.
+fn pick_preferred_audio<'a>(formats: &'a [Value], ids: &[&str]) -> Option<&'a Value> {
+    for id in ids {
+        if let Some(found) = formats.iter().find(|f| format_id_is(f, id)) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn format_video_kbps(format: &Value) -> f64 {

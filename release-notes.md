@@ -1,3 +1,22 @@
+## Dollyt 1.2.4
+
+### Fixed
+
+- Writes application logs in local Windows time instead of UTC.
+- Fetches fresh metadata once per export and passes it to yt-dlp with `--load-info-json` so the download step avoids a second full YouTube page extraction on the first attempt. HTTP 403 retries still use a full re-extraction.
+- Shows the waiting stage only after the download phase has started and only after 45 seconds without output, instead of after 5 seconds during analysis.
+- Parses FFmpeg section progress from partial carriage-return output so percentages can move during quiet mux phases.
+- Returns the download screen to idle after a cancelled export instead of leaving a blocking error state.
+- Clears the yt-dlp child process slot after each queue job finishes.
+- Prefers exact audio format IDs `251` and `140` before variant IDs such as `251-18`.
+
+### Improved
+
+- Emits a diagnostic heartbeat every 30 seconds when yt-dlp is active but produces no new lines during a section download.
+- Records the actual yt-dlp format selector in export start logs.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.3
 
 ### Fixed

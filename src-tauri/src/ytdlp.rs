@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::VecDeque;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -115,6 +115,20 @@ pub fn fetch_metadata_json(url: &str) -> Result<Value> {
         crate::log::log_line("métadonnées vidéo réutilisées depuis le cache local");
         return Ok(value);
     }
+    fetch_metadata_json_fresh(url)
+}
+
+/** Une extraction `-J` fraîche, pour l'export (URLs signées récentes). */
+pub fn fetch_metadata_json_fresh(url: &str) -> Result<Value> {
+    let value = extract_metadata_json(url)?;
+    metadata_cache()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .insert(url, value.clone(), Instant::now());
+    Ok(value)
+}
+
+fn extract_metadata_json(url: &str) -> Result<Value> {
     let output = process::run_ytdlp(&["-J", url])?;
     log_stderr_lines(&output.stderr);
     if !output.status.success() {
@@ -128,10 +142,6 @@ pub fn fetch_metadata_json(url: &str) -> Result<Value> {
             &String::from_utf8_lossy(&output.stderr),
         )));
     }
-    metadata_cache()
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .insert(url, value.clone(), Instant::now());
     Ok(value)
 }
 
@@ -270,6 +280,7 @@ pub fn download_section_cancellable(
     on_progress: Option<ProgressFn>,
     on_stage: Option<StageFn>,
     section_target_duration_secs: f64,
+    info_json: Option<&Value>,
 ) -> Result<DownloadResult> {
     if !valid_format_selector(format_id) {
         return Err(DollytError::YtdlpFailed(
@@ -293,19 +304,12 @@ pub fn download_section_cancellable(
     let mut output_guard = TemporaryDownloadGuard::new(out.clone());
     let out_arg = out.to_string_lossy().into_owned();
     let start = Instant::now();
-    let mut args: Vec<&str> = vec!["-f", format_id, "-N", "4", "-o", out_arg.as_str()];
-    if use_sections {
-        args.extend(["--download-sections", &section]);
-    }
-    if format_id.contains('+') {
-        args.extend(["--merge-output-format", "mkv"]);
-    }
-
-    args.push(url);
-    let args = args.as_slice();
+    let format_id = format_id.to_string();
+    let page_url = url.to_string();
     let pct = Arc::new(AtomicU8::new(0));
     let has_progress = Arc::new(AtomicBool::new(false));
     let stderr_tail = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut use_info_json = info_json.is_some();
     retry_once_on_http_403(
         || {
             cleanup_partial_download(&out);
@@ -314,19 +318,46 @@ pub fn download_section_cancellable(
             if let Ok(mut tail) = stderr_tail.lock() {
                 tail.clear();
             }
+            let info_guard = if use_info_json {
+                use_info_json = false;
+                let meta = info_json.ok_or_else(|| {
+                    DollytError::YtdlpFailed("métadonnées export absentes".into())
+                })?;
+                Some(write_temp_info_json(meta)?)
+            } else {
+                None
+            };
+            let args = build_ytdlp_download_args(
+                &format_id,
+                &out_arg,
+                use_sections,
+                &section,
+                &page_url,
+                info_guard.as_ref().map(|g| g.path.as_path()),
+            );
+            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
 
             // yt-dlp écrit toute sa sortie d'extraction sur stdout : sans lecture
             // complète, un téléchargement peut rester muet des dizaines de
             // secondes et ressembler à un blocage dans l'interface.
             let last_output = Arc::new(Mutex::new(Instant::now()));
-            let mut child = process::spawn_ytdlp(args)?;
+            let download_phase = Arc::new(AtomicBool::new(false));
+            let mut child = process::spawn_ytdlp(&arg_refs)?;
             let stdout_reader = child.stdout.take().map(|stdout| {
                 let pct_bg = Arc::clone(&pct);
                 let has_progress_bg = Arc::clone(&has_progress);
                 let activity_bg = Arc::clone(&last_output);
                 let stage_bg = on_stage.clone();
+                let download_phase_bg = Arc::clone(&download_phase);
                 thread::spawn(move || {
-                    read_ytdlp_progress(stdout, pct_bg, has_progress_bg, activity_bg, stage_bg)
+                    read_ytdlp_progress(
+                        stdout,
+                        pct_bg,
+                        has_progress_bg,
+                        activity_bg,
+                        stage_bg,
+                        download_phase_bg,
+                    )
                 })
             });
             let stderr_reader = child.stderr.take().map(|stderr| {
@@ -363,6 +394,7 @@ pub fn download_section_cancellable(
                 &has_progress,
                 Arc::clone(&stderr_tail),
                 Arc::clone(&last_output),
+                Arc::clone(&download_phase),
                 &mut readers,
                 on_progress.clone(),
                 on_stage.clone(),
@@ -421,6 +453,27 @@ fn valid_format_selector(value: &str) -> bool {
         })
 }
 
+fn note_section_progress_from_tail(
+    partial: &str,
+    section_target_duration_secs: f64,
+    pct: &AtomicU8,
+    has_progress: &AtomicBool,
+) {
+    if section_target_duration_secs <= 0.0 {
+        return;
+    }
+    let tail = if partial.len() > 1024 {
+        &partial[partial.len() - 1024..]
+    } else {
+        partial
+    };
+    if let Some(time) = parse_ffmpeg_time(tail) {
+        let pct_val = ((time / section_target_duration_secs).clamp(0.0, 1.0) * 100.0) as u8;
+        note_percent(pct, pct_val);
+        has_progress.store(true, Ordering::Relaxed);
+    }
+}
+
 fn read_ytdlp_stderr(
     stderr: std::process::ChildStderr,
     pct: Arc<AtomicU8>,
@@ -472,6 +525,12 @@ fn read_ytdlp_stderr(
                     }
                 }
                 partial.drain(..end);
+                note_section_progress_from_tail(
+                    &partial,
+                    section_target_duration_secs,
+                    &pct,
+                    &has_progress,
+                );
             }
             Err(_) => break,
         }
@@ -488,6 +547,7 @@ fn read_ytdlp_progress(
     has_progress: Arc<AtomicBool>,
     last_output: Arc<Mutex<Instant>>,
     on_stage: Option<StageFn>,
+    download_phase: Arc<AtomicBool>,
 ) {
     let mut buf = [0u8; 8192];
     let mut partial = String::new();
@@ -515,6 +575,9 @@ fn read_ytdlp_progress(
                     if let Some(value) = parse_ytdlp_percent(line) {
                         note_percent(&pct, value);
                         has_progress.store(true, Ordering::Relaxed);
+                    }
+                    if line.starts_with("[download]") {
+                        download_phase.store(true, Ordering::Relaxed);
                     }
                     if let Some(cb) = &on_stage {
                         if line.starts_with("[download]") {
@@ -607,6 +670,7 @@ fn parse_ytdlp_percent(line: &str) -> Option<u8> {
 }
 
 const STALL_TIMEOUT: Duration = Duration::from_secs(120);
+const WAITING_UI_DELAY: Duration = Duration::from_secs(45);
 
 #[allow(clippy::too_many_arguments)]
 fn wait_child_slot(
@@ -616,12 +680,14 @@ fn wait_child_slot(
     has_progress: &AtomicBool,
     stderr_tail: Arc<Mutex<Vec<String>>>,
     last_output: Arc<Mutex<Instant>>,
+    download_phase: Arc<AtomicBool>,
     readers: &mut Vec<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
     on_stage: Option<StageFn>,
 ) -> Result<()> {
     let mut last_pct = None;
     let mut announced_wait = false;
+    let mut last_heartbeat = Instant::now();
     loop {
         if cancel.load(Ordering::SeqCst) {
             if let Ok(mut guard) = child_slot.lock()
@@ -637,12 +703,13 @@ fn wait_child_slot(
             .map(|at| at.elapsed())
             .unwrap_or_default();
         let stalled = silent_for > STALL_TIMEOUT;
-        if !stalled && silent_for >= Duration::from_secs(5) && !announced_wait {
+        let in_download = download_phase.load(Ordering::Relaxed);
+        if !stalled && in_download && silent_for >= WAITING_UI_DELAY && !announced_wait {
             announced_wait = true;
             if let Some(cb) = &on_stage {
                 cb("waiting");
             }
-        } else if !stalled && silent_for < Duration::from_secs(5) && announced_wait {
+        } else if !stalled && announced_wait && (silent_for < WAITING_UI_DELAY || !in_download) {
             announced_wait = false;
             if let Some(cb) = &on_stage {
                 cb(if has_progress.load(Ordering::Relaxed) {
@@ -651,6 +718,17 @@ fn wait_child_slot(
                     "metadata"
                 });
             }
+        }
+        if in_download
+            && !stalled
+            && silent_for >= Duration::from_secs(30)
+            && last_heartbeat.elapsed() >= Duration::from_secs(30)
+        {
+            last_heartbeat = Instant::now();
+            crate::log::log_line(&format!(
+                "yt-dlp actif sans ligne depuis {} s (section ou fusion en cours)",
+                silent_for.as_secs()
+            ));
         }
         if stalled {
             crate::log::log_line("téléchargement arrêté: aucune donnée reçue depuis 120 s");
@@ -731,6 +809,63 @@ fn join_output_readers(readers: &mut Vec<thread::JoinHandle<()>>) {
     }
 }
 
+struct TempInfoJson {
+    path: PathBuf,
+}
+
+impl Drop for TempInfoJson {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn write_temp_info_json(value: &Value) -> Result<TempInfoJson> {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let millis = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let path = crate::storage::preview_cache_dir().join(format!("_info-{millis}-{n}.json"));
+    std::fs::write(&path, serde_json::to_vec(value)?)?;
+    Ok(TempInfoJson { path })
+}
+
+fn build_ytdlp_download_args(
+    format_id: &str,
+    out: &str,
+    use_sections: bool,
+    section: &str,
+    page_url: &str,
+    info_json: Option<&Path>,
+) -> Vec<String> {
+    let mut args = vec![
+        "-f".to_string(),
+        format_id.to_string(),
+        "-N".to_string(),
+        "4".to_string(),
+        "-o".to_string(),
+        out.to_string(),
+    ];
+    if use_sections {
+        args.push("--download-sections".to_string());
+        args.push(section.to_string());
+    }
+    if format_id.contains('+') {
+        args.push("--merge-output-format".to_string());
+        args.push("mkv".to_string());
+    }
+    if let Some(path) = info_json {
+        args.push("--load-info-json".to_string());
+        args.push(path.to_string_lossy().into_owned());
+        crate::log::log_line(
+            "téléchargement yt-dlp avec métadonnées récentes (sans deuxième extraction)",
+        );
+    }
+    args.push(page_url.to_string());
+    args
+}
+
 fn temp_mkv_path() -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -747,6 +882,23 @@ fn temp_mkv_path() -> PathBuf {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn download_args_include_info_json_when_requested() {
+        let args = build_ytdlp_download_args(
+            "299+251",
+            "out.mkv",
+            true,
+            "*10-20",
+            "https://example.com/watch?v=x",
+            Some(Path::new("C:\\temp\\info.json")),
+        );
+        assert!(
+            args.windows(2)
+                .any(|w| w == ["--load-info-json", "C:\\temp\\info.json"])
+        );
+        assert!(args.iter().any(|a| a == "https://example.com/watch?v=x"));
+    }
 
     #[test]
     fn metadata_cache_reuses_recent_entries_and_expires_old_ones() {
@@ -943,6 +1095,7 @@ mod tests {
             Some(on_progress),
             None,
             0.0,
+            None,
         )
         .expect("téléchargement");
         let progress_values = progress_values.lock().unwrap();

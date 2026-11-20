@@ -208,6 +208,7 @@ pub fn start_local_preview(
             Some(on_progress),
             None,
             section_duration,
+            None,
         ) else {
             if cancel.load(Ordering::SeqCst) {
                 return;
