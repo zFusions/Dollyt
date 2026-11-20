@@ -4,7 +4,7 @@ Ce protocole valide les correctifs que tu as vécus : fausse panne « YouTube n�
 
 ## Avant de commencer
 
-1. Installe **`Dollyt_1.2.5_x64-setup.exe`** depuis le brouillon GitHub (évite la 1.2.4 sur les extraits).
+1. Installe **`Dollyt_1.2.6_x64-setup.exe`** depuis le brouillon GitHub (minimum **1.2.5** ; évite la 1.2.4).
 2. Ouvre Dollyt une fois. Laisse finir « Préparation des outils vidéo » si l’écran le demande.
 3. Va dans **Paramètres** : choisis un **dossier de sortie** (obligatoire pour exporter).
 4. Sur l’écran d’accueil ou depuis **Paramètres**, ouvre **Afficher les logs** (console de diagnostic). Garde-la visible pendant les tests.
