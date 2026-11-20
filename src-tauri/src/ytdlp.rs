@@ -13,6 +13,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 pub type ProgressFn = Arc<dyn Fn(Option<u8>) + Send + Sync>;
+pub type StageFn = Arc<dyn Fn(&'static str) + Send + Sync>;
 
 const METADATA_CACHE_TTL: Duration = Duration::from_secs(5 * 60);
 const METADATA_CACHE_CAPACITY: usize = 8;
@@ -267,6 +268,7 @@ pub fn download_section_cancellable(
     cancel: &AtomicBool,
     child_slot: &Arc<Mutex<Option<Child>>>,
     on_progress: Option<ProgressFn>,
+    on_stage: Option<StageFn>,
     section_target_duration_secs: f64,
 ) -> Result<DownloadResult> {
     if !valid_format_selector(format_id) {
@@ -321,7 +323,10 @@ pub fn download_section_cancellable(
             let pct_bg = Arc::clone(&pct);
             let has_progress_bg = Arc::clone(&has_progress);
             let activity_bg = Arc::clone(&last_output);
-            thread::spawn(move || read_ytdlp_progress(stdout, pct_bg, has_progress_bg, activity_bg))
+            let stage_bg = on_stage.clone();
+            thread::spawn(move || {
+                read_ytdlp_progress(stdout, pct_bg, has_progress_bg, activity_bg, stage_bg)
+            })
         });
         let stderr_reader = child.stderr.take().map(|stderr| {
             let pct_bg = Arc::clone(&pct);
@@ -470,10 +475,13 @@ fn read_ytdlp_progress(
     pct: Arc<AtomicU8>,
     has_progress: Arc<AtomicBool>,
     last_output: Arc<Mutex<Instant>>,
+    on_stage: Option<StageFn>,
 ) {
     let mut buf = [0u8; 8192];
     let mut partial = String::new();
     let mut stdout_handle = stdout;
+    let analysis_sent = AtomicBool::new(false);
+    let download_sent = AtomicBool::new(false);
     loop {
         match stdout_handle.read(&mut buf) {
             Ok(0) => break,
@@ -495,6 +503,17 @@ fn read_ytdlp_progress(
                     if let Some(value) = parse_ytdlp_percent(line) {
                         pct.store(value, Ordering::Relaxed);
                         has_progress.store(true, Ordering::Relaxed);
+                    }
+                    if let Some(cb) = &on_stage {
+                        if line.starts_with("[download]") {
+                            if !download_sent.swap(true, Ordering::Relaxed) {
+                                cb("download");
+                            }
+                        } else if (line.starts_with("[youtube]") || line.starts_with("[info]"))
+                            && !analysis_sent.swap(true, Ordering::Relaxed)
+                        {
+                            cb("metadata");
+                        }
                     }
                     crate::log::log_line(&format!("yt-dlp: {line}"));
                 }
@@ -842,6 +861,7 @@ mod tests {
             &cancel,
             &child_slot,
             Some(on_progress),
+            None,
             0.0,
         )
         .expect("téléchargement");
