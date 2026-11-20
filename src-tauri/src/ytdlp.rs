@@ -395,6 +395,7 @@ pub fn download_section_cancellable(
                 Arc::clone(&stderr_tail),
                 Arc::clone(&last_output),
                 Arc::clone(&download_phase),
+                stall_timeout(section_target_duration_secs),
                 &mut readers,
                 on_progress.clone(),
                 on_stage.clone(),
@@ -669,8 +670,17 @@ fn parse_ytdlp_percent(line: &str) -> Option<u8> {
         .map(|v| v.clamp(0.0, 100.0) as u8)
 }
 
-const STALL_TIMEOUT: Duration = Duration::from_secs(120);
+const STALL_TIMEOUT_DEFAULT: Duration = Duration::from_secs(120);
+const STALL_TIMEOUT_SECTION: Duration = Duration::from_secs(300);
 const WAITING_UI_DELAY: Duration = Duration::from_secs(45);
+
+fn stall_timeout(section_target_duration_secs: f64) -> Duration {
+    if section_target_duration_secs > 0.0 {
+        STALL_TIMEOUT_SECTION
+    } else {
+        STALL_TIMEOUT_DEFAULT
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 fn wait_child_slot(
@@ -681,6 +691,7 @@ fn wait_child_slot(
     stderr_tail: Arc<Mutex<Vec<String>>>,
     last_output: Arc<Mutex<Instant>>,
     download_phase: Arc<AtomicBool>,
+    stall_limit: Duration,
     readers: &mut Vec<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
     on_stage: Option<StageFn>,
@@ -702,7 +713,7 @@ fn wait_child_slot(
             .lock()
             .map(|at| at.elapsed())
             .unwrap_or_default();
-        let stalled = silent_for > STALL_TIMEOUT;
+        let stalled = silent_for > stall_limit;
         let in_download = download_phase.load(Ordering::Relaxed);
         if !stalled && in_download && silent_for >= WAITING_UI_DELAY && !announced_wait {
             announced_wait = true;
@@ -731,17 +742,20 @@ fn wait_child_slot(
             ));
         }
         if stalled {
-            crate::log::log_line("téléchargement arrêté: aucune donnée reçue depuis 120 s");
+            crate::log::log_line(&format!(
+                "téléchargement arrêté: aucune donnée reçue depuis {} s",
+                stall_limit.as_secs()
+            ));
             if let Ok(mut guard) = child_slot.lock()
                 && let Some(child) = guard.take()
             {
                 process::kill_process_tree(child.id());
             }
             join_output_readers(readers);
-            return Err(DollytError::YtdlpFailed(
-                "yt-dlp ne répond plus (aucune donnée depuis 120 s). Réessaie ou vérifie ta connexion."
-                    .into(),
-            ));
+            return Err(DollytError::YtdlpFailed(format!(
+                "yt-dlp ne répond plus (aucune donnée depuis {} s). Réessaie ou vérifie ta connexion.",
+                stall_limit.as_secs()
+            )));
         }
         let status = {
             let mut guard = child_slot
@@ -855,7 +869,7 @@ fn build_ytdlp_download_args(
         args.push("--merge-output-format".to_string());
         args.push("mkv".to_string());
     }
-    if let Some(path) = info_json {
+    if let Some(path) = info_json.filter(|_| !use_sections) {
         args.push("--load-info-json".to_string());
         args.push(path.to_string_lossy().into_owned());
         crate::log::log_line(
@@ -884,7 +898,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn download_args_include_info_json_when_requested() {
+    fn download_args_skip_info_json_with_sections() {
         let args = build_ytdlp_download_args(
             "299+251",
             "out.mkv",
@@ -893,11 +907,24 @@ mod tests {
             "https://example.com/watch?v=x",
             Some(Path::new("C:\\temp\\info.json")),
         );
+        assert!(!args.iter().any(|a| a == "--load-info-json"));
+        assert!(args.iter().any(|a| a == "--download-sections"));
+    }
+
+    #[test]
+    fn download_args_include_info_json_for_full_download() {
+        let args = build_ytdlp_download_args(
+            "299+251",
+            "out.mkv",
+            false,
+            "*10-20",
+            "https://example.com/watch?v=x",
+            Some(Path::new("C:\\temp\\info.json")),
+        );
         assert!(
             args.windows(2)
                 .any(|w| w == ["--load-info-json", "C:\\temp\\info.json"])
         );
-        assert!(args.iter().any(|a| a == "https://example.com/watch?v=x"));
     }
 
     #[test]

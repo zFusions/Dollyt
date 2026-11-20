@@ -70,6 +70,8 @@ export function HomeView({ toolsReady = true }: { toolsReady?: boolean }) {
     setError("");
     setBusy(true);
     go("download");
+    useDollytStore.getState().setActiveJob(null);
+    useDollytStore.getState().beginDownload();
     setDownloadProgress("metadata", null);
     setVideo(null);
     setStoryboard(null);

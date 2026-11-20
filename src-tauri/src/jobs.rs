@@ -209,6 +209,9 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
         .unwrap_or_else(|_| Err("erreur interne du moteur de traitement".into()));
         let (ok, message, output_path, preview_path) = match result {
             Ok((path, preview)) => (true, "Extrait exporté.".to_string(), Some(path), preview),
+            Err(_) if request.cancel.load(Ordering::SeqCst) => {
+                (false, "annulé".to_string(), None, None)
+            }
             Err(e) => (false, e, None, None),
         };
         if !ok {
@@ -331,6 +334,8 @@ fn run_cut_job(
     // video and section mode would save almost nothing.
     let use_sections = should_use_sections(end_secs - start_secs, info.duration_secs);
     let section_duration = end_secs - start_secs + 6.0;
+    // Sections DASH : les URLs du JSON -J expirent ; --load-info-json fige le
+    // téléchargement sans sortie (comportement yt-dlp, non vérifié partout).
     let download = ytdlp::download_section_cancellable(
         &url,
         &dl_format,
@@ -343,7 +348,11 @@ fn run_cut_job(
         Some(on_progress),
         Some(on_stage),
         section_duration,
-        Some(&meta),
+        if use_sections {
+            None
+        } else {
+            Some(&meta)
+        },
     )
     .map_err(|e| e.to_string())?;
     let _section_guard = TempFileGuard(std::path::PathBuf::from(download.path.as_str()));

@@ -145,7 +145,14 @@ function App() {
         const state = useDollytStore.getState();
         const known = state.jobs.some((job) => job.id === jobId);
         if (known) {
-          const wasQueued = state.jobs.find((job) => job.id === jobId)?.state === "queued";
+          const job = state.jobs.find((item) => item.id === jobId);
+          if (
+            !job ||
+            (job.state !== "running" && job.state !== "queued")
+          ) {
+            return;
+          }
+          const wasQueued = job.state === "queued";
           updateJob(jobId, { stage, percent, state: "running" });
           const isScreenJob = state.activeJobId === jobId;
           const adoptOrphan = wasQueued && state.activeJobId === null;
