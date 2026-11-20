@@ -306,66 +306,74 @@ pub fn download_section_cancellable(
     let pct = Arc::new(AtomicU8::new(0));
     let has_progress = Arc::new(AtomicBool::new(false));
     let stderr_tail = Arc::new(Mutex::new(Vec::<String>::new()));
-    retry_once_on_http_403(|| {
-        cleanup_partial_download(&out);
-        pct.store(0, Ordering::Relaxed);
-        has_progress.store(false, Ordering::Relaxed);
-        if let Ok(mut tail) = stderr_tail.lock() {
-            tail.clear();
-        }
+    retry_once_on_http_403(
+        || {
+            cleanup_partial_download(&out);
+            pct.store(0, Ordering::Relaxed);
+            has_progress.store(false, Ordering::Relaxed);
+            if let Ok(mut tail) = stderr_tail.lock() {
+                tail.clear();
+            }
 
-        // yt-dlp écrit toute sa sortie d'extraction sur stdout : sans lecture
-        // complète, un téléchargement peut rester muet des dizaines de
-        // secondes et ressembler à un blocage dans l'interface.
-        let last_output = Arc::new(Mutex::new(Instant::now()));
-        let mut child = process::spawn_ytdlp(args)?;
-        let stdout_reader = child.stdout.take().map(|stdout| {
-            let pct_bg = Arc::clone(&pct);
-            let has_progress_bg = Arc::clone(&has_progress);
-            let activity_bg = Arc::clone(&last_output);
-            let stage_bg = on_stage.clone();
-            thread::spawn(move || {
-                read_ytdlp_progress(stdout, pct_bg, has_progress_bg, activity_bg, stage_bg)
-            })
-        });
-        let stderr_reader = child.stderr.take().map(|stderr| {
-            let pct_bg = Arc::clone(&pct);
-            let has_progress_bg = Arc::clone(&has_progress);
-            let tail_bg = Arc::clone(&stderr_tail);
-            let section_duration = section_target_duration_secs;
-            let activity_bg = Arc::clone(&last_output);
-            thread::spawn(move || {
-                read_ytdlp_stderr(
-                    stderr,
-                    pct_bg,
-                    has_progress_bg,
-                    tail_bg,
-                    section_duration,
-                    activity_bg,
-                )
-            })
-        });
-        let mut readers = [stdout_reader, stderr_reader]
-            .into_iter()
-            .flatten()
-            .collect();
-        *child_slot
-            .lock()
-            .map_err(|_| DollytError::YtdlpFailed("verrou job".into()))? = Some(child);
-        if let Some(cb) = &on_progress {
-            cb(None);
-        }
-        wait_child_slot(
-            child_slot,
-            cancel,
-            &pct,
-            &has_progress,
-            Arc::clone(&stderr_tail),
-            Arc::clone(&last_output),
-            &mut readers,
-            on_progress.clone(),
-        )
-    })?;
+            // yt-dlp écrit toute sa sortie d'extraction sur stdout : sans lecture
+            // complète, un téléchargement peut rester muet des dizaines de
+            // secondes et ressembler à un blocage dans l'interface.
+            let last_output = Arc::new(Mutex::new(Instant::now()));
+            let mut child = process::spawn_ytdlp(args)?;
+            let stdout_reader = child.stdout.take().map(|stdout| {
+                let pct_bg = Arc::clone(&pct);
+                let has_progress_bg = Arc::clone(&has_progress);
+                let activity_bg = Arc::clone(&last_output);
+                let stage_bg = on_stage.clone();
+                thread::spawn(move || {
+                    read_ytdlp_progress(stdout, pct_bg, has_progress_bg, activity_bg, stage_bg)
+                })
+            });
+            let stderr_reader = child.stderr.take().map(|stderr| {
+                let pct_bg = Arc::clone(&pct);
+                let has_progress_bg = Arc::clone(&has_progress);
+                let tail_bg = Arc::clone(&stderr_tail);
+                let section_duration = section_target_duration_secs;
+                let activity_bg = Arc::clone(&last_output);
+                thread::spawn(move || {
+                    read_ytdlp_stderr(
+                        stderr,
+                        pct_bg,
+                        has_progress_bg,
+                        tail_bg,
+                        section_duration,
+                        activity_bg,
+                    )
+                })
+            });
+            let mut readers = [stdout_reader, stderr_reader]
+                .into_iter()
+                .flatten()
+                .collect();
+            *child_slot
+                .lock()
+                .map_err(|_| DollytError::YtdlpFailed("verrou job".into()))? = Some(child);
+            if let Some(cb) = &on_progress {
+                cb(None);
+            }
+            wait_child_slot(
+                child_slot,
+                cancel,
+                &pct,
+                &has_progress,
+                Arc::clone(&stderr_tail),
+                Arc::clone(&last_output),
+                &mut readers,
+                on_progress.clone(),
+                on_stage.clone(),
+            )
+        },
+        || {
+            if let Some(cb) = &on_stage {
+                cb("retry");
+            }
+        },
+    )?;
     let elapsed_ms = start.elapsed().as_millis() as u64;
     if !out.exists() {
         return Err(DollytError::YtdlpFailed(
@@ -380,10 +388,14 @@ pub fn download_section_cancellable(
     })
 }
 
-fn retry_once_on_http_403<T>(mut operation: impl FnMut() -> Result<T>) -> Result<T> {
+fn retry_once_on_http_403<T>(
+    mut operation: impl FnMut() -> Result<T>,
+    before_retry: impl Fn(),
+) -> Result<T> {
     match operation() {
         Err(error) if error.to_string().contains("HTTP 403") => {
             crate::log::log_line("HTTP 403 pendant le téléchargement, nouvelle extraction yt-dlp");
+            before_retry();
             operation()
         }
         result => result,
@@ -440,14 +452,14 @@ fn read_ytdlp_stderr(
                         continue;
                     }
                     if let Some(value) = parse_ytdlp_percent(line) {
-                        pct.store(value, Ordering::Relaxed);
+                        note_percent(&pct, value);
                         has_progress.store(true, Ordering::Relaxed);
                     } else if let Some(time) = parse_ffmpeg_time(line)
                         && section_target_duration_secs > 0.0
                     {
                         let pct_val =
                             ((time / section_target_duration_secs).clamp(0.0, 1.0) * 100.0) as u8;
-                        pct.store(pct_val, Ordering::Relaxed);
+                        note_percent(&pct, pct_val);
                         has_progress.store(true, Ordering::Relaxed);
                     }
                     crate::log::log_line(&format!("yt-dlp: {line}"));
@@ -501,7 +513,7 @@ fn read_ytdlp_progress(
                         continue;
                     }
                     if let Some(value) = parse_ytdlp_percent(line) {
-                        pct.store(value, Ordering::Relaxed);
+                        note_percent(&pct, value);
                         has_progress.store(true, Ordering::Relaxed);
                     }
                     if let Some(cb) = &on_stage {
@@ -529,15 +541,43 @@ fn read_ytdlp_progress(
 }
 
 fn parse_ffmpeg_time(line: &str) -> Option<f64> {
-    let line = line.trim();
-    let rest = line.split("time=").nth(1)?;
-    let time_str = rest.split_whitespace().next()?;
+    let mut found = None;
+    for (idx, _) in line.match_indices("time=") {
+        let rest = &line[idx + 5..];
+        let Some(time_str) = rest.split_whitespace().next() else {
+            continue;
+        };
+        // Un temps négatif arrive avant la première image. Le traiter
+        // comme une durée positive fait reculer le pourcentage.
+        if time_str.starts_with('-') {
+            continue;
+        }
+        if let Some(secs) = parse_clock(time_str) {
+            found = Some(secs);
+        }
+    }
+    found
+}
+
+fn parse_clock(time_str: &str) -> Option<f64> {
     let mut total = 0.0;
+    let mut parts = 0;
     for part in time_str.split(':') {
         let val = part.parse::<f64>().ok()?;
         total = total * 60.0 + val;
+        parts += 1;
     }
-    Some(total)
+    (parts > 0).then_some(total)
+}
+
+fn note_percent(pct: &AtomicU8, value: u8) {
+    let mut current = pct.load(Ordering::Relaxed);
+    while value > current {
+        match pct.compare_exchange_weak(current, value, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => break,
+            Err(observed) => current = observed,
+        }
+    }
 }
 
 fn parse_ytdlp_percent(line: &str) -> Option<u8> {
@@ -578,8 +618,10 @@ fn wait_child_slot(
     last_output: Arc<Mutex<Instant>>,
     readers: &mut Vec<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
+    on_stage: Option<StageFn>,
 ) -> Result<()> {
     let mut last_pct = None;
+    let mut announced_wait = false;
     loop {
         if cancel.load(Ordering::SeqCst) {
             if let Ok(mut guard) = child_slot.lock()
@@ -590,10 +632,26 @@ fn wait_child_slot(
             join_output_readers(readers);
             return Err(DollytError::Cancelled);
         }
-        let stalled = last_output
+        let silent_for = last_output
             .lock()
-            .map(|at| at.elapsed() > STALL_TIMEOUT)
-            .unwrap_or(false);
+            .map(|at| at.elapsed())
+            .unwrap_or_default();
+        let stalled = silent_for > STALL_TIMEOUT;
+        if !stalled && silent_for >= Duration::from_secs(5) && !announced_wait {
+            announced_wait = true;
+            if let Some(cb) = &on_stage {
+                cb("waiting");
+            }
+        } else if !stalled && silent_for < Duration::from_secs(5) && announced_wait {
+            announced_wait = false;
+            if let Some(cb) = &on_stage {
+                cb(if has_progress.load(Ordering::Relaxed) {
+                    "download"
+                } else {
+                    "metadata"
+                });
+            }
+        }
         if stalled {
             crate::log::log_line("téléchargement arrêté: aucune donnée reçue depuis 120 s");
             if let Ok(mut guard) = child_slot.lock()
@@ -745,7 +803,11 @@ mod tests {
             parse_ffmpeg_time(
                 "frame=  111 fps=0.0 q=-1.0 size=     107KiB time=-00:00:01.16 bitrate=N/A speed=N/A elapsed=0:00:00.50"
             ),
-            Some(1.16)
+            None
+        );
+        assert_eq!(
+            parse_ffmpeg_time("time=-00:00:01.48 bitrate=N/A time=00:00:01.11 bitrate=6.2kbits/s"),
+            Some(1.11)
         );
         assert_eq!(
             parse_ffmpeg_time(
@@ -766,6 +828,15 @@ mod tests {
     }
 
     #[test]
+    fn percent_never_moves_backwards() {
+        let pct = AtomicU8::new(40);
+        note_percent(&pct, 12);
+        assert_eq!(pct.load(Ordering::Relaxed), 40);
+        note_percent(&pct, 55);
+        assert_eq!(pct.load(Ordering::Relaxed), 55);
+    }
+
+    #[test]
     fn parses_download_progress_percent_template() {
         assert_eq!(parse_ytdlp_percent("download: 5.0%"), Some(5));
         assert_eq!(parse_ytdlp_percent("download:100.0%"), Some(100));
@@ -780,17 +851,20 @@ mod tests {
     #[test]
     fn retries_http_403_once_with_a_fresh_extraction() {
         let attempts = std::cell::Cell::new(0);
-        let result = retry_once_on_http_403(|| {
-            let attempt = attempts.get() + 1;
-            attempts.set(attempt);
-            if attempt == 1 {
-                Err(DollytError::YtdlpFailed(
-                    "Le serveur vidéo a refusé la requête (HTTP 403).".into(),
-                ))
-            } else {
-                Ok("downloaded")
-            }
-        });
+        let result = retry_once_on_http_403(
+            || {
+                let attempt = attempts.get() + 1;
+                attempts.set(attempt);
+                if attempt == 1 {
+                    Err(DollytError::YtdlpFailed(
+                        "Le serveur vidéo a refusé la requête (HTTP 403).".into(),
+                    ))
+                } else {
+                    Ok("downloaded")
+                }
+            },
+            || {},
+        );
 
         assert_eq!(result.unwrap(), "downloaded");
         assert_eq!(attempts.get(), 2);
@@ -799,10 +873,13 @@ mod tests {
     #[test]
     fn does_not_retry_non_403_download_errors() {
         let attempts = std::cell::Cell::new(0);
-        let result: Result<()> = retry_once_on_http_403(|| {
-            attempts.set(attempts.get() + 1);
-            Err(DollytError::YtdlpFailed("offline".into()))
-        });
+        let result: Result<()> = retry_once_on_http_403(
+            || {
+                attempts.set(attempts.get() + 1);
+                Err(DollytError::YtdlpFailed("offline".into()))
+            },
+            || {},
+        );
 
         assert!(result.is_err());
         assert_eq!(attempts.get(), 1);
@@ -811,12 +888,15 @@ mod tests {
     #[test]
     fn stops_after_one_retry_when_the_server_still_returns_403() {
         let attempts = std::cell::Cell::new(0);
-        let result: Result<()> = retry_once_on_http_403(|| {
-            attempts.set(attempts.get() + 1);
-            Err(DollytError::YtdlpFailed(
-                "Le serveur vidéo a refusé la requête (HTTP 403).".into(),
-            ))
-        });
+        let result: Result<()> = retry_once_on_http_403(
+            || {
+                attempts.set(attempts.get() + 1);
+                Err(DollytError::YtdlpFailed(
+                    "Le serveur vidéo a refusé la requête (HTTP 403).".into(),
+                ))
+            },
+            || {},
+        );
 
         assert!(result.is_err());
         assert_eq!(attempts.get(), 2);

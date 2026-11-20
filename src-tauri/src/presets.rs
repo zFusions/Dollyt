@@ -122,8 +122,10 @@ fn validate_preset(p: &Preset) -> Result<()> {
     if p.crf.is_some_and(|crf| crf > 51) {
         return Err(bad("crf"));
     }
-    if p.width.is_some_and(|width| width == 0 || width > 7680)
-        || p.height.is_some_and(|height| height == 0 || height > 4320)
+    if p.width
+        .is_some_and(|width| width == 0 || width > 7680 || width % 2 == 1)
+        || p.height
+            .is_some_and(|height| height == 0 || height > 4320 || height % 2 == 1)
         || p.width.is_some() != p.height.is_some()
     {
         return Err(bad("dimensions"));
@@ -229,6 +231,14 @@ mod tests {
     fn rejects_out_of_range_encoding_values() {
         let mut preset = get_builtin("source").unwrap();
         preset.crf = Some(52);
+        assert!(validate_preset(&preset).is_err());
+    }
+
+    #[test]
+    fn rejects_odd_output_dimensions() {
+        let mut preset = get_builtin("youtube").unwrap();
+        preset.width = Some(641);
+        preset.height = Some(360);
         assert!(validate_preset(&preset).is_err());
     }
 
