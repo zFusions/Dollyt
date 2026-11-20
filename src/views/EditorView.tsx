@@ -28,6 +28,17 @@ import { seekToFrame } from "../lib/videoSeek";
 import { useDollytStore } from "../store";
 import { t } from "../i18n";
 
+function stageLabel(stage: string): string {
+  const labels: Record<string, string> = {
+    validation: t("preparingVideo"),
+    metadata: t("analyzingVideo"),
+    download: t("downloadingVideo"),
+    encode: t("creatingClip"),
+    done: t("done"),
+  };
+  return labels[stage] ?? stage;
+}
+
 export function EditorView() {
   const video = useDollytStore((s) => s.video);
   const url = useDollytStore((s) => s.url);
@@ -273,12 +284,13 @@ export function EditorView() {
         setJobPercent(0);
         return;
       }
+      const label = stageLabel(event.payload.stage);
       if (event.payload.percent === null) {
-        setStatus(`${event.payload.stage} — ${t("progressUnavailable")}`);
+        setStatus(`${label} — ${t("progressUnavailable")}`);
         return;
       }
       setJobPercent(event.payload.percent);
-      setStatus(`${event.payload.stage} — ${event.payload.percent} %`);
+      setStatus(`${label} — ${event.payload.percent} %`);
     }).then((u) => unsubs.push(u));
     listen<{ ok: boolean; message: string }>("job-finished", (event) => {
       setJobPercent(event.payload.ok ? 100 : 0);
