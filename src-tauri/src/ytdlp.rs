@@ -336,6 +336,10 @@ pub fn download_section_cancellable(
                 info_guard.as_ref().map(|g| g.path.as_path()),
             );
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            crate::log::log_line(&format!(
+                "équivalent CLI: yt-dlp {}",
+                args.join(" ").replace(page_url.as_str(), "<url>")
+            ));
 
             // yt-dlp écrit toute sa sortie d'extraction sur stdout : sans lecture
             // complète, un téléchargement peut rester muet des dizaines de
@@ -881,22 +885,21 @@ fn build_ytdlp_download_args(
     page_url: &str,
     info_json: Option<&Path>,
 ) -> Vec<String> {
-    let threads = if use_sections { "1" } else { "4" };
     let mut args = vec![
         "-f".to_string(),
         format_id.to_string(),
         "-N".to_string(),
-        threads.to_string(),
+        "4".to_string(),
         "-o".to_string(),
         out.to_string(),
     ];
     if use_sections {
         args.push("--download-sections".to_string());
         args.push(section.to_string());
-        args.push("--fragment-retries".to_string());
-        args.push("10".to_string());
+        args.push("--merge-output-format".to_string());
+        args.push("mkv".to_string());
     }
-    if format_id.contains('+') {
+    if format_id.contains('+') && !use_sections {
         args.push("--merge-output-format".to_string());
         args.push("mkv".to_string());
     }
