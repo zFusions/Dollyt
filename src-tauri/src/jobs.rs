@@ -308,7 +308,19 @@ fn run_cut_job(
     };
     let app_dl = app.clone();
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
-        let _ = emit_progress(&app_dl, job_id, "download", map_download_percent(raw));
+        // Sans pourcentage mesurable, yt-dlp est encore en phase
+        // d'extraction des formats : l'UI doit le dire au lieu de
+        // laisser croire à un téléchargement muet.
+        let stage = if raw.is_some() {
+            "download"
+        } else {
+            "metadata"
+        };
+        let _ = emit_progress(&app_dl, job_id, stage, map_download_percent(raw));
+    });
+    let app_stage = app.clone();
+    let on_stage: ytdlp::StageFn = Arc::new(move |stage: &'static str| {
+        let _ = emit_progress(&app_stage, job_id, stage, None);
     });
     // Section downloads keep bandwidth proportional to the clip but report
     // no byte progress (the UI stays indeterminate). A full download reports
@@ -326,6 +338,7 @@ fn run_cut_job(
         cancel,
         child_slot,
         Some(on_progress),
+        Some(on_stage),
         section_duration,
     )
     .map_err(|e| e.to_string())?;

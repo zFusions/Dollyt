@@ -206,6 +206,7 @@ pub fn start_local_preview(
             cancel.as_ref(),
             &slot,
             Some(on_progress),
+            None,
             section_duration,
         ) else {
             if cancel.load(Ordering::SeqCst) {
