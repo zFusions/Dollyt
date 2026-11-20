@@ -194,15 +194,6 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
             continue;
         };
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let clip_type = if request.start_secs == 0.0 && request.end_secs == 0.0 {
-                "vidéo entière".to_string()
-            } else {
-                format!("extrait {}s-{}s", request.start_secs, request.end_secs)
-            };
-            log::log_line(&format!(
-                "job {} démarré: lien={}, qualité={}, preset={}, {}",
-                request.job_id, request.raw_url, request.format_id, request.preset_id, clip_type
-            ));
             run_cut_job(
                 &app,
                 request.job_id,
@@ -239,6 +230,9 @@ fn worker_loop(app: AppHandle, state: Arc<JobsState>) {
                 .is_some_and(|job| job.job_id == request.job_id)
         {
             *active = None;
+        }
+        if let Ok(mut child) = request.child.lock() {
+            *child = None;
         }
     }
 }
@@ -286,7 +280,7 @@ fn run_cut_job(
         return Err("Choisis d’abord un dossier de sortie dans Paramètres.".into());
     }
     emit_progress(app, job_id, "metadata", None)?;
-    let meta = ytdlp::fetch_metadata_json(&url).map_err(|e| e.to_string())?;
+    let meta = ytdlp::fetch_metadata_json_fresh(&url).map_err(|e| e.to_string())?;
     let info = ytdlp::video_info_from_json(&meta).map_err(|e| e.to_string())?;
     if end_secs > info.duration_secs + 0.5 {
         return Err(format!(
@@ -306,6 +300,15 @@ fn run_cut_job(
             .map(|s| format::to_ytdlp_format(&s))
             .unwrap_or_else(|| download_fallback_format(preset_id, format_id))
     };
+    let clip_type = if start_secs == 0.0 && end_secs == 0.0 {
+        "vidéo entière".to_string()
+    } else {
+        format!("extrait {}s-{}s", start_secs, end_secs)
+    };
+    log::log_line(&format!(
+        "job {job_id} démarré: lien={url}, qualité={dl_format}, preset={preset_id}, {clip_type}",
+        url = raw_url,
+    ));
     let app_dl = app.clone();
     let on_progress: ytdlp::ProgressFn = Arc::new(move |raw| {
         // Sans pourcentage mesurable, yt-dlp est encore en phase
@@ -340,6 +343,7 @@ fn run_cut_job(
         Some(on_progress),
         Some(on_stage),
         section_duration,
+        Some(&meta),
     )
     .map_err(|e| e.to_string())?;
     let _section_guard = TempFileGuard(std::path::PathBuf::from(download.path.as_str()));

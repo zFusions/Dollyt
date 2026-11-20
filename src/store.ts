@@ -232,6 +232,19 @@ export const useDollytStore = create<DollytState>((set, get) => {
     set({ downloadState: "loading", downloadStage });
   },
   finishDownload: (ok, status, downloadPath = "", downloadOutputPath = "") => {
+    const cancelled =
+      status === "annulé" || status === "opération annulée";
+    if (!ok && cancelled) {
+      resetProgress(0);
+      set({
+        downloadState: "idle",
+        downloadStage: "",
+        status: "",
+        downloadPath: "",
+        downloadOutputPath: "",
+      });
+      return;
+    }
     resetProgress(ok ? 100 : 0);
     set({
       downloadState: ok ? "success" : "error",
