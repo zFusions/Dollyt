@@ -1,3 +1,18 @@
+## Dollyt 1.2.6
+
+### Fixed
+
+- Treats a growing partial MKV on disk as active download progress so section exports on long YouTube videos are not killed during silent FFmpeg mux phases.
+- Scales the section stall watchdog with clip length (about 4× the section span, between 5 and 15 minutes).
+
+### Improved
+
+- Uses one yt-dlp fragment thread for section downloads to reduce hung parallel DASH merges on Windows.
+- Raises fragment retries for section downloads.
+- Reuses cached metadata when the video was loaded moments ago instead of forcing a second full `-J` before every export.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.5
 
 ### Fixed

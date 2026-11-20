@@ -283,7 +283,7 @@ fn run_cut_job(
         return Err("Choisis d’abord un dossier de sortie dans Paramètres.".into());
     }
     emit_progress(app, job_id, "metadata", None)?;
-    let meta = ytdlp::fetch_metadata_json_fresh(&url).map_err(|e| e.to_string())?;
+    let meta = ytdlp::fetch_metadata_json(&url).map_err(|e| e.to_string())?;
     let info = ytdlp::video_info_from_json(&meta).map_err(|e| e.to_string())?;
     if end_secs > info.duration_secs + 0.5 {
         return Err(format!(

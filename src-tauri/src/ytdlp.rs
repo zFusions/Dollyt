@@ -396,6 +396,7 @@ pub fn download_section_cancellable(
                 Arc::clone(&last_output),
                 Arc::clone(&download_phase),
                 stall_timeout(section_target_duration_secs),
+                out.clone(),
                 &mut readers,
                 on_progress.clone(),
                 on_stage.clone(),
@@ -671,15 +672,29 @@ fn parse_ytdlp_percent(line: &str) -> Option<u8> {
 }
 
 const STALL_TIMEOUT_DEFAULT: Duration = Duration::from_secs(120);
-const STALL_TIMEOUT_SECTION: Duration = Duration::from_secs(300);
 const WAITING_UI_DELAY: Duration = Duration::from_secs(45);
 
 fn stall_timeout(section_target_duration_secs: f64) -> Duration {
     if section_target_duration_secs > 0.0 {
-        STALL_TIMEOUT_SECTION
+        let secs = (section_target_duration_secs * 4.0).clamp(300.0, 900.0) as u64;
+        Duration::from_secs(secs)
     } else {
         STALL_TIMEOUT_DEFAULT
     }
+}
+
+fn download_output_bytes(path: &Path) -> u64 {
+    let part = {
+        let mut p = path.as_os_str().to_os_string();
+        p.push(".part");
+        PathBuf::from(p)
+    };
+    for candidate in [part, path.to_path_buf()] {
+        if let Ok(meta) = std::fs::metadata(&candidate) {
+            return meta.len();
+        }
+    }
+    0
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -692,6 +707,7 @@ fn wait_child_slot(
     last_output: Arc<Mutex<Instant>>,
     download_phase: Arc<AtomicBool>,
     stall_limit: Duration,
+    watch_output: PathBuf,
     readers: &mut Vec<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
     on_stage: Option<StageFn>,
@@ -699,6 +715,7 @@ fn wait_child_slot(
     let mut last_pct = None;
     let mut announced_wait = false;
     let mut last_heartbeat = Instant::now();
+    let mut last_disk_bytes = 0u64;
     loop {
         if cancel.load(Ordering::SeqCst) {
             if let Ok(mut guard) = child_slot.lock()
@@ -708,6 +725,17 @@ fn wait_child_slot(
             }
             join_output_readers(readers);
             return Err(DollytError::Cancelled);
+        }
+        let bytes = download_output_bytes(&watch_output);
+        if bytes > last_disk_bytes {
+            last_disk_bytes = bytes;
+            if let Ok(mut at) = last_output.lock() {
+                *at = Instant::now();
+            }
+            if bytes > 4096 {
+                download_phase.store(true, Ordering::Relaxed);
+                has_progress.store(true, Ordering::Relaxed);
+            }
         }
         let silent_for = last_output
             .lock()
@@ -853,17 +881,20 @@ fn build_ytdlp_download_args(
     page_url: &str,
     info_json: Option<&Path>,
 ) -> Vec<String> {
+    let threads = if use_sections { "1" } else { "4" };
     let mut args = vec![
         "-f".to_string(),
         format_id.to_string(),
         "-N".to_string(),
-        "4".to_string(),
+        threads.to_string(),
         "-o".to_string(),
         out.to_string(),
     ];
     if use_sections {
         args.push("--download-sections".to_string());
         args.push(section.to_string());
+        args.push("--fragment-retries".to_string());
+        args.push("10".to_string());
     }
     if format_id.contains('+') {
         args.push("--merge-output-format".to_string());
@@ -896,6 +927,14 @@ fn temp_mkv_path() -> PathBuf {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn stall_timeout_grows_with_clip_duration() {
+        assert_eq!(stall_timeout(0.0), Duration::from_secs(120));
+        assert_eq!(stall_timeout(30.0), Duration::from_secs(300));
+        assert_eq!(stall_timeout(125.0), Duration::from_secs(500));
+        assert_eq!(stall_timeout(400.0), Duration::from_secs(900));
+    }
 
     #[test]
     fn download_args_skip_info_json_with_sections() {
