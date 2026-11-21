@@ -310,7 +310,6 @@ pub fn download_section_cancellable(
     let has_progress = Arc::new(AtomicBool::new(false));
     let stderr_tail = Arc::new(Mutex::new(Vec::<String>::new()));
     let mut use_info_json = info_json.is_some();
-    let use_fallback = AtomicBool::new(false);
     retry_once_on_http_403(
         || {
             cleanup_partial_download(&out);
@@ -319,17 +318,6 @@ pub fn download_section_cancellable(
             if let Ok(mut tail) = stderr_tail.lock() {
                 tail.clear();
             }
-            let chosen_format = if use_fallback.load(Ordering::SeqCst) && use_sections {
-                let alt = fallback_section_format(&format_id);
-                if alt != format_id {
-                    crate::log::log_line(&format!(
-                        "secours: le flux {format_id} n'a rien écrit, essai {alt}"
-                    ));
-                }
-                alt
-            } else {
-                format_id.clone()
-            };
             let info_guard = if use_info_json {
                 use_info_json = false;
                 let meta = info_json.ok_or_else(|| {
@@ -340,7 +328,7 @@ pub fn download_section_cancellable(
                 None
             };
             let args = build_ytdlp_download_args(
-                &chosen_format,
+                &format_id,
                 &out_arg,
                 use_sections,
                 &section,
@@ -412,6 +400,7 @@ pub fn download_section_cancellable(
                 Arc::clone(&last_output),
                 Arc::clone(&download_phase),
                 stall_timeout(section_target_duration_secs),
+                lo,
                 section_target_duration_secs,
                 out.clone(),
                 &mut readers,
@@ -420,7 +409,6 @@ pub fn download_section_cancellable(
             )
         },
         || {
-            use_fallback.store(true, Ordering::SeqCst);
             if let Some(cb) = &on_stage {
                 cb("retry");
             }
@@ -441,8 +429,7 @@ pub fn download_section_cancellable(
 }
 
 fn retryable_download_error(error: &DollytError) -> bool {
-    let text = error.to_string();
-    text.contains("HTTP 403") || text.contains("section muette")
+    error.to_string().contains("HTTP 403")
 }
 
 fn retry_once_on_http_403<T>(
@@ -451,14 +438,7 @@ fn retry_once_on_http_403<T>(
 ) -> Result<T> {
     match operation() {
         Err(error) if retryable_download_error(&error) => {
-            crate::log::log_line(&format!(
-                "nouvel essai du téléchargement ({})",
-                if error.to_string().contains("section muette") {
-                    "aucune donnée après Destination"
-                } else {
-                    "HTTP 403"
-                }
-            ));
+            crate::log::log_line("HTTP 403 pendant le téléchargement, nouvelle extraction yt-dlp");
             before_retry();
             operation()
         }
@@ -466,12 +446,14 @@ fn retry_once_on_http_403<T>(
     }
 }
 
-fn fallback_section_format(format_id: &str) -> String {
-    if format_id.contains("299") {
-        "137+140/136+140/22/18".into()
-    } else {
-        format_id.to_string()
+fn section_mute_limit(section_start_secs: f64, stall_limit: Duration) -> Duration {
+    if section_start_secs <= 1.0 {
+        return Duration::from_secs(25);
     }
+    // Un extrait qui ne commence pas à 0 : ffmpeg lit souvent la vidéo
+    // depuis le début avant d'écrire le moindre octet.
+    let secs = (40.0 + section_start_secs * 2.0).min(stall_limit.as_secs_f64());
+    Duration::from_secs(secs.max(90.0) as u64)
 }
 
 fn cleanup_partial_download(path: &PathBuf) {
@@ -745,6 +727,7 @@ fn wait_child_slot(
     last_output: Arc<Mutex<Instant>>,
     download_phase: Arc<AtomicBool>,
     stall_limit: Duration,
+    section_start_secs: f64,
     section_target_duration_secs: f64,
     watch_output: PathBuf,
     readers: &mut Vec<thread::JoinHandle<()>>,
@@ -798,10 +781,12 @@ fn wait_child_slot(
         }
         if section_target_duration_secs > 0.0
             && bytes < 65_536
-            && download_since.is_some_and(|at| at.elapsed() >= Duration::from_secs(25))
+            && download_since.is_some_and(|at| {
+                at.elapsed() >= section_mute_limit(section_start_secs, stall_limit)
+            })
         {
             crate::log::log_line(&format!(
-                "section muette: {bytes} octets après Destination, arrêt pour réessayer"
+                "section muette: {bytes} octets, extrait à {section_start_secs:.0}s, arrêt"
             ));
             if let Ok(mut guard) = child_slot.lock()
                 && let Some(child) = guard.take()
@@ -835,7 +820,7 @@ fn wait_child_slot(
         {
             last_heartbeat = Instant::now();
             crate::log::log_line(&format!(
-                "yt-dlp actif sans ligne depuis {} s, fichier {bytes} octets",
+                "ffmpeg cherche l'extrait à {section_start_secs:.0}s depuis {} s, fichier {bytes} octets",
                 silent_for.as_secs()
             ));
         }
@@ -965,6 +950,8 @@ fn build_ytdlp_download_args(
         args.push(section.to_string());
         args.push("--downloader-args".to_string());
         args.push("ffmpeg:-stats_period 1".to_string());
+        args.push("--downloader-args".to_string());
+        args.push("ffmpeg_i:-seekable 1".to_string());
         args.push("--merge-output-format".to_string());
         args.push("mkv".to_string());
     }
@@ -1009,6 +996,13 @@ mod tests {
     }
 
     #[test]
+    fn mute_limit_allows_ffmpeg_to_reach_a_late_section() {
+        let stall = Duration::from_secs(500);
+        assert_eq!(section_mute_limit(0.0, stall), Duration::from_secs(25));
+        assert!(section_mute_limit(117.0, stall) >= Duration::from_secs(270));
+    }
+
+    #[test]
     fn download_args_skip_info_json_with_sections() {
         let args = build_ytdlp_download_args(
             "299+251",
@@ -1026,8 +1020,12 @@ mod tests {
         );
         assert!(
             args.windows(2)
-                .any(|w| w == ["--downloader-args", "ffmpeg:-stats_period 1"]),
-            "section downloads ask ffmpeg for periodic stats"
+                .any(|w| w == ["--downloader-args", "ffmpeg:-stats_period 1"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|w| w == ["--downloader-args", "ffmpeg_i:-seekable 1"]),
+            "section downloads ask ffmpeg to seek in the remote file"
         );
     }
 

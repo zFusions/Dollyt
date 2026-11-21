@@ -1,3 +1,13 @@
+## Dollyt 1.2.10
+
+### Fixed
+
+- A clip that starts after the beginning of the video is no longer aborted at 25 seconds with an empty file. ffmpeg often reads up to that position before writing the first byte.
+- Asks ffmpeg to seek in the remote file so a multi-minute offset does not have to be read from the start.
+- Stops switching a silent 299 download to a lower format. That second attempt had the same seek and failed the same way.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.9
 
 ### Fixed
