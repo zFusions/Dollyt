@@ -896,8 +896,9 @@ fn build_ytdlp_download_args(
     if use_sections {
         args.push("--download-sections".to_string());
         args.push(section.to_string());
-        args.push("--merge-output-format".to_string());
-        args.push("mkv".to_string());
+        // Do not force --merge-output-format mkv with --download-sections.
+        // yt-dlp uses FFmpeg for section extraction and the merge flag can
+        // interfere with the final file rename, leaving only a .part file.
         // shortcut: FFmpeg 8.1 on Windows treats negative short_seek as UINT64_MAX; force HTTP Range seek
         args.push("--downloader-args".to_string());
         args.push("ffmpeg_i:-short_seek_size 1".to_string());
