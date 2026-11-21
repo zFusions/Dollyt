@@ -400,6 +400,7 @@ pub fn download_section_cancellable(
                 Arc::clone(&last_output),
                 Arc::clone(&download_phase),
                 stall_timeout(section_target_duration_secs),
+                section_target_duration_secs,
                 out.clone(),
                 &mut readers,
                 on_progress.clone(),
@@ -711,6 +712,7 @@ fn wait_child_slot(
     last_output: Arc<Mutex<Instant>>,
     download_phase: Arc<AtomicBool>,
     stall_limit: Duration,
+    section_target_duration_secs: f64,
     watch_output: PathBuf,
     readers: &mut Vec<thread::JoinHandle<()>>,
     on_progress: Option<ProgressFn>,
@@ -739,6 +741,17 @@ fn wait_child_slot(
             if bytes > 4096 {
                 download_phase.store(true, Ordering::Relaxed);
                 has_progress.store(true, Ordering::Relaxed);
+            }
+            if section_target_duration_secs > 0.0 {
+                // yt-dlp peut rester muet pendant la fusion DASH : la taille du
+                // .part reste le seul signal fiable pour faire avancer l'UI.
+                let expected =
+                    (section_target_duration_secs * 700_000.0).max(2_000_000.0) as u64;
+                let est = ((bytes as f64 / expected as f64).clamp(0.0, 0.98) * 100.0) as u8;
+                if est > pct.load(Ordering::Relaxed) {
+                    note_percent(pct, est);
+                    has_progress.store(true, Ordering::Relaxed);
+                }
             }
         }
         let silent_for = last_output
@@ -885,17 +898,20 @@ fn build_ytdlp_download_args(
     page_url: &str,
     info_json: Option<&Path>,
 ) -> Vec<String> {
+    let threads = if use_sections { "1" } else { "4" };
     let mut args = vec![
         "-f".to_string(),
         format_id.to_string(),
         "-N".to_string(),
-        "4".to_string(),
+        threads.to_string(),
         "-o".to_string(),
         out.to_string(),
     ];
     if use_sections {
         args.push("--download-sections".to_string());
         args.push(section.to_string());
+        args.push("--fragment-retries".to_string());
+        args.push("10".to_string());
         args.push("--merge-output-format".to_string());
         args.push("mkv".to_string());
     }
@@ -951,6 +967,16 @@ mod tests {
         );
         assert!(!args.iter().any(|a| a == "--load-info-json"));
         assert!(args.iter().any(|a| a == "--download-sections"));
+        assert!(
+            args.windows(2)
+                .any(|w| w == ["-N", "1"]),
+            "section downloads must use a single fragment worker"
+        );
+        assert!(
+            args.windows(2)
+                .any(|w| w == ["--fragment-retries", "10"]),
+            "section downloads need extra fragment retries"
+        );
     }
 
     #[test]
