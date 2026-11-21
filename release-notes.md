@@ -1,3 +1,17 @@
+## Dollyt 1.2.8
+
+### Fixed
+
+- Section exports use one yt-dlp fragment worker again (`-N 1`) instead of four parallel workers that could stall with no console output on some PCs.
+- Restores higher fragment retries for section downloads.
+- Progress bar advances from partial file size when yt-dlp is silent during DASH merge, instead of staying at 5%.
+
+### Improved
+
+- Waiting stage copy explains the silent DASH merge phase.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.7
 
 ### Changed
