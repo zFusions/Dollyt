@@ -33,7 +33,7 @@
 | | |
 | --- | --- |
 | **Paste** | Any YouTube URL — clip or full video |
-| **Pick** | TikTok 9:16, Reels, Shorts, YouTube 16:9, X, raw source, local quality, max quality, MP3 320k or lossless FLAC |
+| **Pick** | TikTok, Reels, Shorts (source aspect), YouTube 16:9 with letterboxing, X, raw source, local quality, max quality, MP3 320k or lossless FLAC |
 | **Queue** | Stack exports — they run one at a time in the background while you keep working (or play Snake) |
 | **Get** | The file lands in your folder; preview completed exports in-app and find them again in History |
 

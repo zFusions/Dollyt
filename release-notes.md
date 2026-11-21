@@ -1,3 +1,16 @@
+## Dollyt 1.2.7
+
+### Changed
+
+- TikTok, Reels, Shorts and X presets keep the source aspect ratio: CRF and fps only, no forced 9:16 center crop.
+- YouTube preset still targets 1920×1080 with letterboxing when needed, without center crop.
+
+### Improved
+
+- FFmpeg preset filters never apply `crop=`; social presets align even dimensions only.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.6
 
 ### Fixed
