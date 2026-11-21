@@ -495,11 +495,7 @@ fn video_filter_for_preset(preset: &Preset) -> Option<String> {
     if w == 0 || h == 0 {
         return None;
     }
-    if preset.crop == "center" && w < h {
-        return Some(format!(
-            "scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},format=yuv420p,setsar=1:1"
-        ));
-    }
+    // Jamais de crop : uniquement scale + bandes si une taille cible est définie.
     Some(format!(
         "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,format=yuv420p,setsar=1:1"
     ))
@@ -845,12 +841,12 @@ mod tests {
     }
 
     #[test]
-    fn vertical_crop_uses_the_preset_size() {
+    fn sized_preset_uses_pad_not_crop() {
         let filter =
-            video_filter_for_preset(&preset("libx264", "center", Some(720), Some(1280))).unwrap();
+            video_filter_for_preset(&preset("libx264", "none", Some(720), Some(1280))).unwrap();
         assert!(filter.contains("scale=720:1280"));
-        assert!(filter.contains("crop=720:1280"));
-        assert!(!filter.contains("1080:1920"));
+        assert!(filter.contains("pad=720:1280"));
+        assert!(!filter.contains("crop="));
     }
 
     #[test]

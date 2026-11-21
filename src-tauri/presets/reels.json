@@ -1,16 +1,16 @@
 {
   "id": "reels",
-  "name": "Instagram Reels 9:16",
+  "name": "Instagram Reels",
   "container": "mp4",
   "videoCodec": "libx264",
   "audioCodec": "aac",
   "crf": 18,
-  "width": 1080,
-  "height": 1920,
+  "width": null,
+  "height": null,
   "fps": 30,
-  "crop": "center",
+  "crop": "none",
   "audioBitrateKbps": 128,
   "videoMaxBitrateKbps": 25000,
   "nameTemplate": "{titre}_{debut}-{fin}",
-  "description": "MP4 vertical pour Reels. Plafond vidéo 25 Mbps, audio AAC 128 kbps (limites Meta)."
+  "description": "MP4 H.264 pour Reels. CRF 18, proportions de la source, plafond 25 Mbps, sans recadrage."
 }
