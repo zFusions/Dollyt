@@ -745,8 +745,7 @@ fn wait_child_slot(
             if section_target_duration_secs > 0.0 {
                 // yt-dlp peut rester muet pendant la fusion DASH : la taille du
                 // .part reste le seul signal fiable pour faire avancer l'UI.
-                let expected =
-                    (section_target_duration_secs * 700_000.0).max(2_000_000.0) as u64;
+                let expected = (section_target_duration_secs * 700_000.0).max(2_000_000.0) as u64;
                 let est = ((bytes as f64 / expected as f64).clamp(0.0, 0.98) * 100.0) as u8;
                 if est > pct.load(Ordering::Relaxed) {
                     note_percent(pct, est);
@@ -968,13 +967,11 @@ mod tests {
         assert!(!args.iter().any(|a| a == "--load-info-json"));
         assert!(args.iter().any(|a| a == "--download-sections"));
         assert!(
-            args.windows(2)
-                .any(|w| w == ["-N", "1"]),
+            args.windows(2).any(|w| w == ["-N", "1"]),
             "section downloads must use a single fragment worker"
         );
         assert!(
-            args.windows(2)
-                .any(|w| w == ["--fragment-retries", "10"]),
+            args.windows(2).any(|w| w == ["--fragment-retries", "10"]),
             "section downloads need extra fragment retries"
         );
     }
