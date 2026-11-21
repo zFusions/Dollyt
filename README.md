@@ -55,6 +55,10 @@
 2. The Windows setup installs yt-dlp, FFmpeg, ffprobe and Deno from pinned, SHA-256-verified packages. The first app launch reuses those local files without downloading or rechecking them. If a tool is missing or damaged, Dollyt can recover it from the official GitHub releases.
 3. Paste a YouTube URL, pick a preset, export.
 
+## Stability
+
+Dollyt is still rough around export reliability. The same URL and preset can succeed on one Windows PC and fail on another, often when the clip starts far into a long video. Your network, how YouTube serves the file and the bundled yt-dlp or FFmpeg build all matter. Installed builds from Releases are best-effort: no guarantee they behave like a finished product. If an export stalls or errors, try a short range near the start of the video or run a [build from source](#build-from-source) on that PC.
+
 ## Requirements
 
 - Windows 10 22H2 or Windows 11 (x64), WebView2 Runtime. Hardware encoding is optional; software encoding works without a dedicated GPU.
