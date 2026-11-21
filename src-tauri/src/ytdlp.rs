@@ -738,7 +738,6 @@ fn wait_child_slot(
     let mut announced_wait = false;
     let mut last_heartbeat = Instant::now();
     let mut last_disk_bytes = 0u64;
-    let mut download_since: Option<Instant> = None;
     loop {
         if cancel.load(Ordering::SeqCst) {
             if let Ok(mut guard) = child_slot.lock()
@@ -776,14 +775,9 @@ fn wait_child_slot(
             .unwrap_or_default();
         let stalled = silent_for > stall_limit;
         let in_download = download_phase.load(Ordering::Relaxed);
-        if in_download && download_since.is_none() {
-            download_since = Some(Instant::now());
-        }
         if section_target_duration_secs > 0.0
             && bytes < 65_536
-            && download_since.is_some_and(|at| {
-                at.elapsed() >= section_mute_limit(section_start_secs, stall_limit)
-            })
+            && silent_for >= section_mute_limit(section_start_secs, stall_limit)
         {
             crate::log::log_line(&format!(
                 "section muette: {bytes} octets, extrait à {section_start_secs:.0}s, arrêt"
@@ -951,7 +945,7 @@ fn build_ytdlp_download_args(
         args.push("--downloader-args".to_string());
         args.push("ffmpeg:-stats_period 1".to_string());
         args.push("--downloader-args".to_string());
-        args.push("ffmpeg_i:-seekable 1".to_string());
+        args.push("ffmpeg_i:-seekable 0".to_string());
         args.push("--merge-output-format".to_string());
         args.push("mkv".to_string());
     }
@@ -1024,8 +1018,8 @@ mod tests {
         );
         assert!(
             args.windows(2)
-                .any(|w| w == ["--downloader-args", "ffmpeg_i:-seekable 1"]),
-            "section downloads ask ffmpeg to seek in the remote file"
+                .any(|w| w == ["--downloader-args", "ffmpeg_i:-seekable 0"]),
+            "section downloads must not range-seek: that request hangs on some PCs"
         );
     }
 
