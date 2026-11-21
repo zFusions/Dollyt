@@ -310,6 +310,7 @@ pub fn download_section_cancellable(
     let has_progress = Arc::new(AtomicBool::new(false));
     let stderr_tail = Arc::new(Mutex::new(Vec::<String>::new()));
     let mut use_info_json = info_json.is_some();
+    let use_fallback = AtomicBool::new(false);
     retry_once_on_http_403(
         || {
             cleanup_partial_download(&out);
@@ -318,6 +319,17 @@ pub fn download_section_cancellable(
             if let Ok(mut tail) = stderr_tail.lock() {
                 tail.clear();
             }
+            let chosen_format = if use_fallback.load(Ordering::SeqCst) && use_sections {
+                let alt = fallback_section_format(&format_id);
+                if alt != format_id {
+                    crate::log::log_line(&format!(
+                        "secours: le flux {format_id} n'a rien écrit, essai {alt}"
+                    ));
+                }
+                alt
+            } else {
+                format_id.clone()
+            };
             let info_guard = if use_info_json {
                 use_info_json = false;
                 let meta = info_json.ok_or_else(|| {
@@ -328,7 +340,7 @@ pub fn download_section_cancellable(
                 None
             };
             let args = build_ytdlp_download_args(
-                &format_id,
+                &chosen_format,
                 &out_arg,
                 use_sections,
                 &section,
@@ -408,6 +420,7 @@ pub fn download_section_cancellable(
             )
         },
         || {
+            use_fallback.store(true, Ordering::SeqCst);
             if let Some(cb) = &on_stage {
                 cb("retry");
             }
@@ -427,17 +440,37 @@ pub fn download_section_cancellable(
     })
 }
 
+fn retryable_download_error(error: &DollytError) -> bool {
+    let text = error.to_string();
+    text.contains("HTTP 403") || text.contains("section muette")
+}
+
 fn retry_once_on_http_403<T>(
     mut operation: impl FnMut() -> Result<T>,
     before_retry: impl Fn(),
 ) -> Result<T> {
     match operation() {
-        Err(error) if error.to_string().contains("HTTP 403") => {
-            crate::log::log_line("HTTP 403 pendant le téléchargement, nouvelle extraction yt-dlp");
+        Err(error) if retryable_download_error(&error) => {
+            crate::log::log_line(&format!(
+                "nouvel essai du téléchargement ({})",
+                if error.to_string().contains("section muette") {
+                    "aucune donnée après Destination"
+                } else {
+                    "HTTP 403"
+                }
+            ));
             before_retry();
             operation()
         }
         result => result,
+    }
+}
+
+fn fallback_section_format(format_id: &str) -> String {
+    if format_id.contains("299") {
+        "137+140/136+140/22/18".into()
+    } else {
+        format_id.to_string()
     }
 }
 
@@ -722,6 +755,7 @@ fn wait_child_slot(
     let mut announced_wait = false;
     let mut last_heartbeat = Instant::now();
     let mut last_disk_bytes = 0u64;
+    let mut download_since: Option<Instant> = None;
     loop {
         if cancel.load(Ordering::SeqCst) {
             if let Ok(mut guard) = child_slot.lock()
@@ -759,6 +793,26 @@ fn wait_child_slot(
             .unwrap_or_default();
         let stalled = silent_for > stall_limit;
         let in_download = download_phase.load(Ordering::Relaxed);
+        if in_download && download_since.is_none() {
+            download_since = Some(Instant::now());
+        }
+        if section_target_duration_secs > 0.0
+            && bytes < 65_536
+            && download_since.is_some_and(|at| at.elapsed() >= Duration::from_secs(25))
+        {
+            crate::log::log_line(&format!(
+                "section muette: {bytes} octets après Destination, arrêt pour réessayer"
+            ));
+            if let Ok(mut guard) = child_slot.lock()
+                && let Some(child) = guard.take()
+            {
+                process::kill_process_tree(child.id());
+            }
+            join_output_readers(readers);
+            return Err(DollytError::YtdlpFailed(
+                "section muette: aucune donnée écrite après Destination".into(),
+            ));
+        }
         if !stalled && in_download && silent_for >= WAITING_UI_DELAY && !announced_wait {
             announced_wait = true;
             if let Some(cb) = &on_stage {
@@ -781,7 +835,7 @@ fn wait_child_slot(
         {
             last_heartbeat = Instant::now();
             crate::log::log_line(&format!(
-                "yt-dlp actif sans ligne depuis {} s (section ou fusion en cours)",
+                "yt-dlp actif sans ligne depuis {} s, fichier {bytes} octets",
                 silent_for.as_secs()
             ));
         }
@@ -909,8 +963,8 @@ fn build_ytdlp_download_args(
     if use_sections {
         args.push("--download-sections".to_string());
         args.push(section.to_string());
-        args.push("--fragment-retries".to_string());
-        args.push("10".to_string());
+        args.push("--downloader-args".to_string());
+        args.push("ffmpeg:-stats_period 1".to_string());
         args.push("--merge-output-format".to_string());
         args.push("mkv".to_string());
     }
@@ -971,8 +1025,9 @@ mod tests {
             "section downloads must use a single fragment worker"
         );
         assert!(
-            args.windows(2).any(|w| w == ["--fragment-retries", "10"]),
-            "section downloads need extra fragment retries"
+            args.windows(2)
+                .any(|w| w == ["--downloader-args", "ffmpeg:-stats_period 1"]),
+            "section downloads ask ffmpeg for periodic stats"
         );
     }
 

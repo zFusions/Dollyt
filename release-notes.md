@@ -1,3 +1,28 @@
+## Dollyt 1.2.9
+
+### Fixed
+
+- Section downloads that stay silent with an empty partial file are stopped after 90 seconds and retried once with a fresh YouTube extraction (same as HTTP 403 recovery).
+- Progress no longer sits at 0% during a long silent phase: a time-based floor and partial file size feed the bar when yt-dlp does not print percentages.
+
+### Improved
+
+- Heartbeat logs include partial file size in bytes for support.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
+## Dollyt 1.2.9
+
+### Fixed
+
+- Forces IPv4 for yt-dlp. A PC whose IPv6 path to YouTube hangs stays silent after Destination while another PC on IPv4 finishes.
+- Stops a section download that writes nothing for 25 seconds and retries once with a 1080p AVC fallback (137+140) when format 299 produced no bytes.
+- Shortens socket and fragment retries so a refused stream fails in seconds instead of several silent minutes.
+- Asks ffmpeg for a stats line every second during section downloads.
+- Heartbeat logs include the partial file size in bytes.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.8
 
 ### Fixed

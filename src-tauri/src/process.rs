@@ -103,12 +103,15 @@ fn push_ffmpeg_location(cmd: &mut Command, ffmpeg: &Path) {
 
 fn push_ytdlp_network_defaults(cmd: &mut Command) {
     cmd.args([
+        // IPv6 qui ne répond pas laisse ffmpeg muet après Destination.
+        // Un PC peut être en IPv4 utile et l'autre bloqué en IPv6.
+        "-4",
         "--socket-timeout",
-        "30",
+        "15",
         "--retries",
-        "3",
+        "2",
         "--fragment-retries",
-        "3",
+        "2",
         "--extractor-retries",
         "2",
     ]);
@@ -174,12 +177,13 @@ mod tests {
         assert_eq!(
             args,
             [
+                "-4",
                 "--socket-timeout",
-                "30",
+                "15",
                 "--retries",
-                "3",
+                "2",
                 "--fragment-retries",
-                "3",
+                "2",
                 "--extractor-retries",
                 "2",
             ]
