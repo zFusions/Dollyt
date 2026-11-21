@@ -348,11 +348,7 @@ fn run_cut_job(
         Some(on_progress),
         Some(on_stage),
         section_duration,
-        if use_sections {
-            None
-        } else {
-            Some(&meta)
-        },
+        if use_sections { None } else { Some(&meta) },
     )
     .map_err(|e| e.to_string())?;
     let _section_guard = TempFileGuard(std::path::PathBuf::from(download.path.as_str()));
