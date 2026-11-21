@@ -1,3 +1,11 @@
+## Dollyt 1.2.11
+
+### Fixed
+
+- Section downloads no longer ask ffmpeg to range-seek into the remote file. On the installer PC that request never returns, so any clip that does not start at 0 stayed at 0 bytes. Reading from the start is the path that already works for a clip at 0s.
+
+Windows x64 installer. Runtime tool licenses and sources are documented in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Dollyt 1.2.10
 
 ### Fixed
