@@ -54,6 +54,23 @@ pub fn ensure_tools() -> Result<()> {
     }
     let dir = bin_dir();
     fs::create_dir_all(&dir)?;
+
+    // Check if this is a fresh installation (no tools at all). The installer
+    // should have copied them from runtime-tools. If they're missing, the
+    // installer failed and we should fail early with a clear message instead
+    // of silently trying to download from the internet.
+    let has_any_tool = dir.join("yt-dlp.exe").is_file()
+        || dir.join("ffmpeg.exe").is_file()
+        || dir.join("ffprobe.exe").is_file()
+        || dir.join("deno.exe").is_file();
+    if !has_any_tool {
+        crate::log::log_line("aucun outil vidéo détecté: l'installateur a échoué");
+        return Err(DollytError::BinDownload(
+            "L'installateur n'a pas copié les outils vidéo dans %LOCALAPPDATA%\\Dollyt\\bin. \
+             Réinstallez Dollyt et vérifiez que vous avez les permissions d'écriture et de l'espace disque.".into()
+        ));
+    }
+
     let ytdlp = dir.join("yt-dlp.exe");
     let ytdlp_is_verified = ensure_ytdlp_install_marker(&ytdlp)?;
     if !ytdlp_is_verified {
