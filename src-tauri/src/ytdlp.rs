@@ -898,6 +898,9 @@ fn build_ytdlp_download_args(
         args.push(section.to_string());
         args.push("--merge-output-format".to_string());
         args.push("mkv".to_string());
+        // shortcut: FFmpeg 8.1 on Windows treats negative short_seek as UINT64_MAX; force HTTP Range seek
+        args.push("--downloader-args".to_string());
+        args.push("ffmpeg_i:-short_seek_size 1".to_string());
     }
     if format_id.contains('+') && !use_sections {
         args.push("--merge-output-format".to_string());
@@ -951,6 +954,23 @@ mod tests {
         );
         assert!(!args.iter().any(|a| a == "--load-info-json"));
         assert!(args.iter().any(|a| a == "--download-sections"));
+        assert!(
+            args.windows(2)
+                .any(|w| w == ["--downloader-args", "ffmpeg_i:-short_seek_size 1"])
+        );
+    }
+
+    #[test]
+    fn download_args_section_short_seek_not_used_for_full_download() {
+        let args = build_ytdlp_download_args(
+            "299+251",
+            "out.mkv",
+            false,
+            "*10-20",
+            "https://example.com/watch?v=x",
+            None,
+        );
+        assert!(!args.iter().any(|a| a == "--downloader-args"));
     }
 
     #[test]
